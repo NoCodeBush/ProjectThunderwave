@@ -4,18 +4,6 @@ This directory contains SQL migration files for setting up the database schema i
 
 ## Running Migrations
 
-### Option 1: Using Supabase Dashboard (Recommended)
-
-1. Go to your Supabase project dashboard
-2. Navigate to **SQL Editor**
-3. Copy and paste the contents of each migration file in order:
-   - `001_create_jobs_table.sql`
-   - `002_create_test_equipment_table.sql`
-   - `003_create_job_assignments_table.sql`
-   - `004_create_user_profiles_view.sql`
-4. Click **Run** to execute each migration
-
-### Option 2: Using Supabase CLI
 
 If you have the Supabase CLI installed:
 

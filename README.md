@@ -27,49 +27,23 @@ A modern Progressive Web App (PWA) with mobile-first design, featuring Google an
    npm install
    ```
 
-2. **Set up Supabase:**
-   - Go to [Supabase Dashboard](https://app.supabase.com/)
-   - Create a new project or use an existing one
-   - Enable Authentication providers:
-     - Go to Authentication > Providers
-     - Enable **Google** provider and configure OAuth credentials
-     - Enable **Apple** provider (requires Apple Developer account)
-   - Get your Supabase configuration:
-     - Go to Project Settings > API
-     - Copy your Project URL and anon/public key
-
-3. **Configure environment variables:**
-   - Copy `env.example` to `.env`
-   - Fill in your Supabase configuration values:
-     ```env
-     VITE_SUPABASE_URL=your-project-url
-     VITE_SUPABASE_ANON_KEY=your-anon-key
-     ```
-
-4. **Run the development server:**
+3. **Run the development server:**
    ```bash
    npm run dev
    ```
 
-5. **Build for production:**
+3. **Build for production:**
    ```bash
    npm run build
    ```
 
-6. **Preview production build:**
+4. **Preview production build:**
    ```bash
    npm run preview
    ```
 
 ## Supabase Authentication Setup
 
-### Google Sign-In
-
-1. In Supabase Dashboard, go to Authentication > Providers
-2. Click on Google and enable it
-3. Add your Google OAuth credentials (Client ID and Client Secret)
-4. Add the redirect URL: `https://your-project-ref.supabase.co/auth/v1/callback`
-5. Save the changes
 
 ### Apple Sign-In
 
