@@ -86,6 +86,8 @@ export const useJobs = () => {
             location: row.location,
             tags: row.tags || [],
             details: row.details,
+            site_contact: row.site_contact,
+            site_phone_number: row.site_phone_number,
             assignedUsers: jobAssignments.length > 0 ? jobAssignments : undefined
           }
         })
@@ -138,6 +140,8 @@ export const useJobs = () => {
           location: job.location,
           tags: job.tags,
           details: job.details,
+          site_contact: job.site_contact,
+          site_phone_number: job.site_phone_number,
           user_id: currentUser.id,
           tenant_id: tenantId
         })
@@ -185,6 +189,8 @@ export const useJobs = () => {
       if (updates.location !== undefined) updateData.location = updates.location
       if (updates.tags !== undefined) updateData.tags = updates.tags
       if (updates.details !== undefined) updateData.details = updates.details
+      if (updates.site_contact !== undefined) updateData.site_contact = updates.site_contact
+      if (updates.site_phone_number !== undefined) updateData.site_phone_number = updates.site_phone_number
 
       const { error } = await supabase
         .from('jobs')

@@ -5,6 +5,7 @@ import { useTenant } from '../context/TenantContext'
 import { useJobs } from '../hooks/useJobs'
 import { useTestEquipment } from '../hooks/useTestEquipment'
 import { useUsers } from '../hooks/useUsers'
+import { useNotifications } from '../hooks/useNotifications'
 import { MESSAGES, ROUTES } from '../constants'
 import { formatDate, isExpired, isExpiringSoon } from '../utils/date'
 import { parseTags } from '../utils/strings'
@@ -12,6 +13,7 @@ import Banner from './Banner'
 import Input from './ui/Input'
 import TextArea from './ui/TextArea'
 import Button from './ui/Button'
+import NotificationTray from './ui/NotificationTray'
 
 const Admin: React.FC = () => {
   const navigate = useNavigate()
@@ -20,6 +22,7 @@ const Admin: React.FC = () => {
   const { addJob } = useJobs()
   const { equipment, addEquipment, deleteEquipment } = useTestEquipment()
   const { users, loading: usersLoading } = useUsers()
+  const { notifications, markAsRead, markAllAsRead } = useNotifications()
 
   // Job form state
   const [jobForm, setJobForm] = useState({
@@ -29,6 +32,8 @@ const Admin: React.FC = () => {
     location: '',
     tags: '',
     details: '',
+    site_contact: '',
+    site_phone_number: '',
     assignedUserIds: [] as string[]
   })
 
@@ -83,6 +88,8 @@ const Admin: React.FC = () => {
         location: '',
         tags: '',
         details: '',
+        site_contact: '',
+        site_phone_number: '',
         assignedUserIds: [],
       })
 
@@ -158,9 +165,16 @@ const Admin: React.FC = () => {
               </div>
               <h1 className="text-xl font-bold text-gray-900">Admin Area</h1>
             </div>
-            <Button variant="secondary" size="sm" onClick={() => logout()}>
-              {MESSAGES.SIGN_OUT}
-            </Button>
+            <div className="flex items-center gap-3">
+              <NotificationTray
+                notifications={notifications}
+                onNotificationClick={(notification) => markAsRead(notification.id)}
+                onMarkAllRead={markAllAsRead}
+              />
+              <Button variant="secondary" size="sm" onClick={() => logout()}>
+                {MESSAGES.SIGN_OUT}
+              </Button>
+            </div>
           </div>
         </div>
       </header>
@@ -253,6 +267,24 @@ const Admin: React.FC = () => {
                 placeholder="Re-test, Metering, Stop Button, etc.e"
                 hint={MESSAGES.TAGS_HINT}
               />
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Input
+                  label="Site Contact"
+                  type="text"
+                  value={jobForm.site_contact}
+                  onChange={(e) => setJobForm({ ...jobForm, site_contact: e.target.value })}
+                  placeholder="John Smith"
+                />
+
+                <Input
+                  label="Site Phone Number"
+                  type="tel"
+                  value={jobForm.site_phone_number}
+                  onChange={(e) => setJobForm({ ...jobForm, site_phone_number: e.target.value })}
+                  placeholder="+44 1234 567890"
+                />
+              </div>
 
               <TextArea
                 label="Details"

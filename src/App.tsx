@@ -6,6 +6,7 @@ import { ROUTES } from './constants/routes'
 import SignIn from './components/SignIn'
 import Dashboard from './components/Dashboard'
 import Admin from './components/Admin'
+import JobDetails from './components/JobDetails'
 
 const PrivateRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { currentUser } = useAuth()
@@ -52,6 +53,14 @@ function AppRoutes() {
         element={
           <PrivateRoute>
             <Admin />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path={ROUTES.JOB_DETAILS}
+        element={
+          <PrivateRoute>
+            <JobDetails />
           </PrivateRoute>
         }
       />

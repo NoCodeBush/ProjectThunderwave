@@ -3,6 +3,8 @@ CREATE TABLE IF NOT EXISTS public.jobs (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     name TEXT NOT NULL,
     client TEXT NOT NULL,
+    site_contact TEXT,
+    site_phone_number TEXT,
     date DATE NOT NULL,
     location TEXT NOT NULL,
     tags TEXT[] DEFAULT '{}',

@@ -3,11 +3,14 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { MESSAGES, ROUTES } from '../constants'
 import Button from './ui/Button'
+import NotificationTray from './ui/NotificationTray'
 import JobList from './JobList'
+import { useNotifications } from '../hooks/useNotifications'
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate()
   const { currentUser, logout } = useAuth()
+  const { notifications, markAsRead, markAllAsRead } = useNotifications()
   const [loading, setLoading] = useState(false)
 
   const handleLogout = async () => {
@@ -36,6 +39,11 @@ const Dashboard: React.FC = () => {
               <h1 className="text-xl font-bold text-gray-900">My Jobs</h1>
             </div>
             <div className="flex items-center gap-3">
+              <NotificationTray
+                notifications={notifications}
+                onNotificationClick={(notification) => markAsRead(notification.id)}
+                onMarkAllRead={markAllAsRead}
+              />
               <button
                 onClick={() => navigate(ROUTES.ADMIN)}
                 className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"

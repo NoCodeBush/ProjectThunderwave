@@ -44,6 +44,7 @@ export const MESSAGES = {
   // Job card
   TAP_FOR_DETAILS: 'Tap for details',
   TAP_TO_COLLAPSE: 'Tap to collapse',
+  CLICK_FOR_FULL_DETAILS: 'Click for full details',
   ASSIGNED_TO: 'Assigned to:',
 } as const
 

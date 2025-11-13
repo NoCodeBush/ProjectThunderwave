@@ -1,16 +1,19 @@
 import React, { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useJobs } from '../hooks/useJobs'
 import { Job } from '../types/job'
-import { MESSAGES, CONFIG } from '../constants'
+import { MESSAGES, CONFIG, ROUTES } from '../constants'
 import { formatDate } from '../utils/date'
 
 const JobCard: React.FC<{ job: Job; onDelete: (id: string) => void }> = ({ job, onDelete }) => {
+  const navigate = useNavigate()
   const [expanded, setExpanded] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
 
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation()
+    e.preventDefault()
     if (showDeleteConfirm) {
       onDelete(job.id)
       setShowDeleteConfirm(false)
@@ -25,9 +28,14 @@ const JobCard: React.FC<{ job: Job; onDelete: (id: string) => void }> = ({ job, 
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden transition-all hover:shadow-md">
-      <div 
+      <div
         className="p-4 cursor-pointer"
-        onClick={() => setExpanded(!expanded)}
+        onClick={(e) => {
+          // Only navigate if not clicking on delete button
+          if (!e.defaultPrevented) {
+            navigate(ROUTES.JOB_DETAILS.replace(':jobId', job.id))
+          }
+        }}
       >
         <div className="flex items-start justify-between gap-3">
           <div className="flex-1 min-w-0">
@@ -118,7 +126,7 @@ const JobCard: React.FC<{ job: Job; onDelete: (id: string) => void }> = ({ job, 
         {/* Expand/Collapse indicator */}
         <div className="flex items-center justify-center mt-3 pt-3 border-t border-gray-100">
               <span className="text-xs text-gray-500 flex items-center gap-1">
-            {expanded ? MESSAGES.TAP_TO_COLLAPSE : MESSAGES.TAP_FOR_DETAILS}
+            {expanded ? MESSAGES.TAP_TO_COLLAPSE : MESSAGES.CLICK_FOR_FULL_DETAILS}
             <svg
               className={`w-4 h-4 transition-transform ${expanded ? 'rotate-180' : ''}`}
               fill="none"

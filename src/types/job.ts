@@ -6,6 +6,8 @@ export interface Job {
   location: string
   tags: string[]
   details: string
+  site_contact?: string
+  site_phone_number?: string
   assignedUsers?: Array<{
     id: string
     email: string
