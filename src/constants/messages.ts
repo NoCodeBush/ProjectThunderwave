@@ -13,6 +13,12 @@ export const MESSAGES = {
   GENERIC_ERROR: 'An error occurred. Please try again.',
   SIGN_IN_GOOGLE_FAILED: 'Failed to sign in with Google',
   SIGN_IN_APPLE_FAILED: 'Failed to sign in with Apple',
+  SIGN_IN_EMAIL_FAILED: 'Failed to sign in. Please check your email and password.',
+  SIGN_UP_EMAIL_FAILED: 'Failed to create account. Please try again.',
+  INVALID_EMAIL: 'Please enter a valid email address',
+  WEAK_PASSWORD: 'Password must be at least 6 characters',
+  PASSWORD_RESET_SENT: 'Password reset email sent! Check your inbox.',
+  PASSWORD_RESET_FAILED: 'Failed to send password reset email.',
   
   // Loading states
   LOADING_JOBS: 'Loading jobs...',
@@ -40,6 +46,15 @@ export const MESSAGES = {
   CONTINUE_GOOGLE: 'Continue with Google',
   CONTINUE_APPLE: 'Continue with Apple',
   SIGN_IN_TO_CONTINUE: 'Sign in to continue',
+  SIGN_IN: 'Sign In',
+  SIGN_UP: 'Sign Up',
+  EMAIL: 'Email',
+  PASSWORD: 'Password',
+  FORGOT_PASSWORD: 'Forgot password?',
+  RESET_PASSWORD: 'Reset Password',
+  ALREADY_HAVE_ACCOUNT: 'Already have an account? Sign in',
+  DONT_HAVE_ACCOUNT: "Don't have an account? Sign up",
+  OR_CONTINUE_WITH: 'Or continue with',
   
   // Job card
   TAP_FOR_DETAILS: 'Tap for details',

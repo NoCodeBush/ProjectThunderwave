@@ -1,11 +1,85 @@
 import React, { useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { MESSAGES } from '../constants'
+import Input from './ui/Input'
+import Button from './ui/Button'
 
 const SignIn: React.FC = () => {
-  const { signInWithGoogle, signInWithApple } = useAuth()
-  const [loading, setLoading] = useState<'google' | 'apple' | null>(null)
+  const { 
+    signInWithGoogle, 
+    signInWithApple, 
+    signInWithEmail, 
+    signUpWithEmail, 
+    resetPassword 
+  } = useAuth()
+  
+  const [mode, setMode] = useState<'signin' | 'signup' | 'reset'>('signin')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [loading, setLoading] = useState<'email' | 'google' | 'apple' | 'reset' | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
+  const [emailError, setEmailError] = useState<string | null>(null)
+  const [passwordError, setPasswordError] = useState<string | null>(null)
+
+  const validateEmail = (email: string): boolean => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(email)) {
+      setEmailError(MESSAGES.INVALID_EMAIL)
+      return false
+    }
+    setEmailError(null)
+    return true
+  }
+
+  const validatePassword = (password: string): boolean => {
+    if (password.length < 6) {
+      setPasswordError(MESSAGES.WEAK_PASSWORD)
+      return false
+    }
+    setPasswordError(null)
+    return true
+  }
+
+  const handleEmailAuth = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError(null)
+    setSuccess(null)
+
+    if (!validateEmail(email)) return
+    if (mode === 'reset') {
+      try {
+        setLoading('reset')
+        await resetPassword(email)
+        setSuccess(MESSAGES.PASSWORD_RESET_SENT)
+        setMode('signin')
+        setEmail('')
+      } catch (err: any) {
+        setError(err.message || MESSAGES.PASSWORD_RESET_FAILED)
+      } finally {
+        setLoading(null)
+      }
+      return
+    }
+
+    if (!validatePassword(password)) return
+
+    try {
+      setLoading('email')
+      if (mode === 'signup') {
+        await signUpWithEmail(email, password)
+        setSuccess('Account created! Please check your email to verify your account.')
+        setMode('signin')
+        setPassword('')
+      } else {
+        await signInWithEmail(email, password)
+      }
+    } catch (err: any) {
+      setError(err.message || (mode === 'signup' ? MESSAGES.SIGN_UP_EMAIL_FAILED : MESSAGES.SIGN_IN_EMAIL_FAILED))
+    } finally {
+      setLoading(null)
+    }
+  }
 
   const handleGoogleSignIn = async () => {
     try {
@@ -63,6 +137,118 @@ const SignIn: React.FC = () => {
             </div>
           )}
 
+          {success && (
+            <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+              <p className="text-sm text-green-600">{success}</p>
+            </div>
+          )}
+
+          {/* Email/Password Form */}
+          <form onSubmit={handleEmailAuth} className="space-y-4 mb-6">
+            <Input
+              label={MESSAGES.EMAIL}
+              type="email"
+              value={email}
+              onChange={(e) => {
+                setEmail(e.target.value)
+                if (emailError) setEmailError(null)
+              }}
+              error={emailError || undefined}
+              required
+              disabled={loading !== null}
+            />
+
+            {mode !== 'reset' && (
+              <Input
+                label={MESSAGES.PASSWORD}
+                type="password"
+                value={password}
+                onChange={(e) => {
+                  setPassword(e.target.value)
+                  if (passwordError) setPasswordError(null)
+                }}
+                error={passwordError || undefined}
+                required
+                disabled={loading !== null}
+              />
+            )}
+
+            {mode === 'signin' && (
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode('reset')
+                    setError(null)
+                    setSuccess(null)
+                  }}
+                  className="text-sm text-primary-600 hover:text-primary-700 font-medium"
+                >
+                  {MESSAGES.FORGOT_PASSWORD}
+                </button>
+              </div>
+            )}
+
+            <Button
+              type="submit"
+              fullWidth
+              disabled={loading !== null}
+            >
+              {loading === 'email' || loading === 'reset' ? (
+                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mx-auto" />
+              ) : mode === 'reset' ? (
+                MESSAGES.RESET_PASSWORD
+              ) : mode === 'signup' ? (
+                MESSAGES.SIGN_UP
+              ) : (
+                MESSAGES.SIGN_IN
+              )}
+            </Button>
+
+            {mode === 'reset' && (
+              <button
+                type="button"
+                onClick={() => {
+                  setMode('signin')
+                  setError(null)
+                  setSuccess(null)
+                }}
+                className="w-full text-sm text-gray-600 hover:text-gray-700 font-medium"
+              >
+                Back to sign in
+              </button>
+            )}
+
+            {mode !== 'reset' && (
+              <div className="text-center">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode(mode === 'signin' ? 'signup' : 'signin')
+                    setError(null)
+                    setSuccess(null)
+                    setEmailError(null)
+                    setPasswordError(null)
+                  }}
+                  className="text-sm text-primary-600 hover:text-primary-700 font-medium"
+                >
+                  {mode === 'signin' ? MESSAGES.DONT_HAVE_ACCOUNT : MESSAGES.ALREADY_HAVE_ACCOUNT}
+                </button>
+              </div>
+            )}
+          </form>
+
+          {/* Divider */}
+          <div className="relative mb-6">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-gray-300"></div>
+            </div>
+            <div className="relative flex justify-center text-sm">
+              <span className="px-2 bg-white text-gray-500">{MESSAGES.OR_CONTINUE_WITH}</span>
+            </div>
+          </div>
+
+          {/* OAuth Buttons */}
           <div className="space-y-4">
             {/* Google Sign In Button */}
             <button

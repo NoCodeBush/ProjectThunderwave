@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react'
-import { User, Session } from '@supabase/supabase-js'
+import { User } from '@supabase/supabase-js'
 import { supabase } from '../supabase/config'
 import { ROUTES } from '../constants/routes'
 import { CONFIG } from '../constants/config'
@@ -9,6 +9,9 @@ interface AuthContextType {
   loading: boolean
   signInWithGoogle: () => Promise<void>
   signInWithApple: () => Promise<void>
+  signInWithEmail: (email: string, password: string) => Promise<void>
+  signUpWithEmail: (email: string, password: string) => Promise<void>
+  resetPassword: (email: string) => Promise<void>
   logout: () => Promise<void>
 }
 
@@ -74,6 +77,47 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }
 
+  const signInWithEmail = async (email: string, password: string) => {
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      })
+      if (error) throw error
+    } catch (error) {
+      console.error('Error signing in with email:', error)
+      throw error
+    }
+  }
+
+  const signUpWithEmail = async (email: string, password: string) => {
+    try {
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: `${CONFIG.OAUTH_REDIRECT_BASE}${ROUTES.DASHBOARD}`,
+        },
+      })
+      if (error) throw error
+    } catch (error) {
+      console.error('Error signing up with email:', error)
+      throw error
+    }
+  }
+
+  const resetPassword = async (email: string) => {
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${CONFIG.OAUTH_REDIRECT_BASE}${ROUTES.SIGN_IN}`,
+      })
+      if (error) throw error
+    } catch (error) {
+      console.error('Error resetting password:', error)
+      throw error
+    }
+  }
+
   const logout = async () => {
     try {
       const { error } = await supabase.auth.signOut()
@@ -89,6 +133,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     loading,
     signInWithGoogle,
     signInWithApple,
+    signInWithEmail,
+    signUpWithEmail,
+    resetPassword,
     logout
   }
 
