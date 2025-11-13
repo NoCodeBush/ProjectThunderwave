@@ -24,7 +24,6 @@ export const useAssets = (jobId?: string) => {
           .from('assets')
           .select('*')
           .eq('job_id', jobId)
-          .eq('tenant_id', tenantId)
           .order('created_at', { ascending: false })
 
         if (error) throw error
@@ -48,7 +47,7 @@ export const useAssets = (jobId?: string) => {
           event: '*',
           schema: 'public',
           table: 'assets',
-          filter: `job_id=eq.${jobId},tenant_id=eq.${tenantId}`
+          filter: `job_id=eq.${jobId}`
         },
         (payload) => {
           console.log('Real-time asset update:', payload.eventType, payload)
@@ -79,18 +78,17 @@ export const useAssets = (jobId?: string) => {
     }
   }, [jobId, tenantId])
 
-  const addAsset = async (assetData: Omit<Asset, 'id' | 'created_at' | 'updated_at' | 'created_by' | 'tenant_id'>) => {
+  const addAsset = async (assetData: Omit<Asset, 'id' | 'created_at' | 'updated_at' | 'created_by'>) => {
     if (!tenantId) throw new Error('Tenant not loaded')
     if (!currentUser) throw new Error('User not authenticated')
 
-    console.log('Adding asset with data:', { ...assetData, tenant_id: tenantId, created_by: currentUser.id })
+    console.log('Adding asset with data:', { ...assetData, created_by: currentUser.id })
 
     try {
       const { data, error } = await supabase
         .from('assets')
         .insert({
           ...assetData,
-          tenant_id: tenantId,
           created_by: currentUser.id
         })
         .select()
@@ -113,7 +111,6 @@ export const useAssets = (jobId?: string) => {
         .from('assets')
         .update(updates)
         .eq('id', id)
-        .eq('tenant_id', tenantId)
         .select()
         .single()
 
@@ -128,14 +125,13 @@ export const useAssets = (jobId?: string) => {
   const deleteAsset = async (id: string) => {
     if (!tenantId) throw new Error('Tenant not loaded')
 
-    console.log('Deleting asset with id:', id, 'tenant:', tenantId)
+    console.log('Deleting asset with id:', id)
 
     try {
       const { error } = await supabase
         .from('assets')
         .delete()
         .eq('id', id)
-        .eq('tenant_id', tenantId)
 
       if (error) throw error
       console.log('Asset deleted successfully:', id)
@@ -156,7 +152,6 @@ export const useAssets = (jobId?: string) => {
         .from('assets')
         .select('*')
         .eq('job_id', jobId)
-        .eq('tenant_id', tenantId)
         .order('created_at', { ascending: false })
 
       if (error) throw error

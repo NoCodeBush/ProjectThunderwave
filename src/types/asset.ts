@@ -22,7 +22,6 @@ export type AssetType =
 export interface Asset {
   id: string;
   job_id: string;
-  tenant_id: string;
   asset_type: AssetType;
   make?: string;
   model?: string;
