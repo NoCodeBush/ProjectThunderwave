@@ -113,40 +113,41 @@ const AssetManagement: React.FC = () => {
       {/* Header */}
       <header className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center gap-3">
+          <div className="flex items-center justify-between min-h-16 py-3">
+            <div className="flex items-center gap-3 min-w-0 flex-1">
               <button
                 onClick={() => navigate(ROUTES.JOB_DETAILS.replace(':jobId', job.id))}
-                className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+                className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors flex-shrink-0"
                 aria-label="Back to job details"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                 </svg>
               </button>
-              <div className="w-8 h-8 bg-primary-500 rounded-lg flex items-center justify-center">
+              <div className="w-8 h-8 bg-primary-500 rounded-lg flex items-center justify-center flex-shrink-0">
                 <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
                 </svg>
               </div>
-              <div>
-                <h1 className="text-xl font-bold text-gray-900">Asset Management</h1>
-                <p className="text-sm text-gray-600">{job.name}</p>
+              <div className="min-w-0 flex-1">
+                <h1 className="text-lg sm:text-xl font-bold text-gray-900 truncate">Asset Management</h1>
+                <p className="text-sm text-gray-600 truncate max-w-xs sm:max-w-md">{job.name}</p>
               </div>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0 ml-4">
               <Button
                 onClick={refreshAssets}
                 variant="secondary"
-                className="flex items-center gap-2"
+                className="hidden sm:flex items-center gap-2 text-sm"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                 </svg>
-                Refresh
+                <span className="hidden lg:inline">Refresh</span>
               </Button>
-              <Button onClick={() => setShowAddForm(!showAddForm)} variant="primary">
-                {showAddForm ? 'Cancel' : 'Add Asset'}
+              <Button onClick={() => setShowAddForm(!showAddForm)} variant="primary" className="text-sm">
+                <span className="hidden sm:inline">{showAddForm ? 'Cancel' : 'Add Asset'}</span>
+                <span className="sm:hidden">{showAddForm ? 'Cancel' : 'Add'}</span>
               </Button>
             </div>
           </div>
