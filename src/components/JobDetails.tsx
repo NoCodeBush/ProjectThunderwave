@@ -64,8 +64,7 @@ const JobDetails: React.FC = () => {
         </svg>
       ),
       action: () => {
-        // TODO: Navigate to asset management
-        console.log('Navigate to asset management for job:', job.id)
+        navigate(ROUTES.ASSET_MANAGEMENT.replace(':jobId', job.id))
       }
     },
     {

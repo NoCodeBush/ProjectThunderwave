@@ -4,6 +4,7 @@ export const ROUTES = {
   DASHBOARD: '/dashboard',
   ADMIN: '/admin',
   JOB_DETAILS: '/job/:jobId',
+  ASSET_MANAGEMENT: '/job/:jobId/assets',
   ROOT: '/',
 } as const
 
