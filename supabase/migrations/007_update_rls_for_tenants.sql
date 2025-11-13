@@ -130,6 +130,38 @@ BEGIN
                 tenant_id IS NOT NULL AND EXISTS (
                     SELECT 1 FROM public.jobs
                     WHERE jobs.id = job_assignments.job_id
-                    AND (jobs.user_id = auth.uid() OR job_assignments
+                    AND (jobs.user_id = auth.uid() OR job_assignments.user_id = auth.uid())
+                )
+            );
+    END IF;
 
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies WHERE policyname = 'Job owners can assign users in their tenant' AND tablename = 'job_assignments'
+    ) THEN
+        CREATE POLICY "Job owners can assign users in their tenant"
+            ON public.job_assignments FOR INSERT
+            WITH CHECK (
+                tenant_id IS NOT NULL AND EXISTS (
+                    SELECT 1 FROM public.jobs
+                    WHERE jobs.id = job_assignments.job_id
+                    AND jobs.user_id = auth.uid()
+                )
+            );
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies WHERE policyname = 'Job owners can remove assignments in their tenant' AND tablename = 'job_assignments'
+    ) THEN
+        CREATE POLICY "Job owners can remove assignments in their tenant"
+            ON public.job_assignments FOR DELETE
+            USING (
+                tenant_id IS NOT NULL AND EXISTS (
+                    SELECT 1 FROM public.jobs
+                    WHERE jobs.id = job_assignments.job_id
+                    AND jobs.user_id = auth.uid()
+                )
+            );
+    END IF;
+
+END $$;
 
