@@ -100,7 +100,7 @@ const JobDetails: React.FC = () => {
     },
     {
       title: 'Image/Scan',
-      description: 'Take photos and scan documents',
+      description: 'Take photos and apply scanner effects',
       icon: (
         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
@@ -108,8 +108,7 @@ const JobDetails: React.FC = () => {
         </svg>
       ),
       action: () => {
-        // TODO: Navigate to image/scan
-        console.log('Navigate to image/scan for job:', job.id)
+        navigate(ROUTES.IMAGE_SCAN.replace(':jobId', job.id))
       }
     }
   ]
