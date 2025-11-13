@@ -2,7 +2,7 @@ import React from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useJobs } from '../hooks/useJobs'
 import { useAuth } from '../context/AuthContext'
-import { ROUTES, MESSAGES } from '../constants'
+import { ROUTES } from '../constants'
 import { formatDate } from '../utils/date'
 import Button from './ui/Button'
 

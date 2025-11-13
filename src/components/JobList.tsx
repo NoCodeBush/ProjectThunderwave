@@ -7,7 +7,7 @@ import { formatDate } from '../utils/date'
 
 const JobCard: React.FC<{ job: Job; onDelete: (id: string) => void }> = ({ job, onDelete }) => {
   const navigate = useNavigate()
-  const [expanded, setExpanded] = useState(false)
+  const [expanded] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
 

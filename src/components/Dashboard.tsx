@@ -9,7 +9,7 @@ import { useNotifications } from '../hooks/useNotifications'
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate()
-  const { currentUser, logout } = useAuth()
+  const { logout } = useAuth()
   const { notifications, markAsRead, markAllAsRead } = useNotifications()
   const [loading, setLoading] = useState(false)
 

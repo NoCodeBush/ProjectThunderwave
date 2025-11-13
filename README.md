@@ -42,6 +42,80 @@ A modern Progressive Web App (PWA) with mobile-first design, featuring Google an
    npm run preview
    ```
 
+## Vercel Deployment
+
+### Prerequisites
+
+- A Vercel account ([vercel.com](https://vercel.com))
+- Your Supabase project URL and anon key
+
+### Deploy to Vercel
+
+#### Option 1: Vercel CLI (Recommended)
+
+1. **Install Vercel CLI:**
+   ```bash
+   npm install -g vercel
+   ```
+
+2. **Login to Vercel:**
+   ```bash
+   vercel login
+   ```
+
+3. **Deploy:**
+   ```bash
+   vercel --prod
+   ```
+
+4. **Set Environment Variables:**
+   In the Vercel dashboard or via CLI:
+   ```bash
+   vercel env add VITE_SUPABASE_URL
+   vercel env add VITE_SUPABASE_ANON_KEY
+   ```
+
+#### Option 2: GitHub Integration
+
+1. **Connect Repository:**
+   - Push your code to GitHub
+   - Go to [vercel.com](https://vercel.com)
+   - Click "New Project"
+   - Import your GitHub repository
+
+2. **Configure Environment Variables:**
+   - In Vercel dashboard, go to your project settings
+   - Navigate to "Environment Variables"
+   - Add:
+     - `VITE_SUPABASE_URL`: Your Supabase project URL
+     - `VITE_SUPABASE_ANON_KEY`: Your Supabase anon key
+
+3. **Deploy:**
+   - Vercel will automatically deploy on every push to main branch
+   - Or click "Deploy" manually
+
+### Environment Variables
+
+Your `.env` file should contain:
+
+```env
+VITE_SUPABASE_URL=https://your-project-id.supabase.co
+VITE_SUPABASE_ANON_KEY=your-anon-key-here
+```
+
+### Custom Domain (Optional)
+
+To use custom domains for multi-tenancy:
+
+1. **Add domains in Vercel:**
+   - In Vercel dashboard, go to your project settings
+   - Navigate to "Domains"
+   - Add your tenant domains
+
+2. **Domain-based tenant routing:**
+   - The app automatically detects tenant from the domain
+   - Configure tenant domains in your Supabase `tenants` table
+
 ## Supabase Authentication Setup
 
 
