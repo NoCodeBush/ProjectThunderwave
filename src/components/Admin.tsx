@@ -1,10 +1,11 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { useTenant } from '../context/TenantContext'
 import { useJobs } from '../hooks/useJobs'
 import { useTestEquipment } from '../hooks/useTestEquipment'
 import { useUsers } from '../hooks/useUsers'
-import { MESSAGES, CONFIG, ROUTES } from '../constants'
+import { MESSAGES, ROUTES } from '../constants'
 import { formatDate, isExpired, isExpiringSoon } from '../utils/date'
 import { parseTags } from '../utils/strings'
 import Banner from './Banner'
@@ -15,6 +16,7 @@ import Button from './ui/Button'
 const Admin: React.FC = () => {
   const navigate = useNavigate()
   const { logout, currentUser } = useAuth()
+  const { tenant, updateTenant, loading: tenantLoading } = useTenant()
   const { addJob } = useJobs()
   const { equipment, addEquipment, deleteEquipment } = useTestEquipment()
   const { users, loading: usersLoading } = useUsers()
@@ -37,8 +39,24 @@ const Admin: React.FC = () => {
     dateTest: ''
   })
 
-  const [activeTab, setActiveTab] = useState<'jobs' | 'equipment'>('jobs')
+  const [activeTab, setActiveTab] = useState<'jobs' | 'equipment' | 'branding'>('jobs')
   const [banner, setBanner] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
+  
+  // Branding form state
+  const [brandingForm, setBrandingForm] = useState({
+    primaryColor: '#3b82f6',
+    logoUrl: ''
+  })
+  
+  // Initialize branding form when tenant loads
+  useEffect(() => {
+    if (tenant) {
+      setBrandingForm({
+        primaryColor: tenant.primary_color || '#3b82f6',
+        logoUrl: tenant.logo_url || ''
+      })
+    }
+  }, [tenant])
 
   const handleJobSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -91,6 +109,20 @@ const Admin: React.FC = () => {
     } catch (error) {
       setBanner({ message: MESSAGES.EQUIPMENT_ADD_FAILED, type: 'error' })
       console.error('Error adding equipment:', error)
+    }
+  }
+
+  const handleBrandingSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    try {
+      await updateTenant({
+        primary_color: brandingForm.primaryColor,
+        logo_url: brandingForm.logoUrl || null
+      })
+      setBanner({ message: 'Branding settings updated successfully!', type: 'success' })
+    } catch (error) {
+      setBanner({ message: 'Failed to update branding settings', type: 'error' })
+      console.error('Error updating branding:', error)
     }
   }
 
@@ -158,6 +190,16 @@ const Admin: React.FC = () => {
             >
               Test Equipment
             </button>
+            <button
+              onClick={() => setActiveTab('branding')}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === 'branding'
+                  ? 'border-primary-500 text-primary-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              Branding
+            </button>
           </div>
         </div>
 
@@ -208,7 +250,7 @@ const Admin: React.FC = () => {
                 type="text"
                 value={jobForm.tags}
                 onChange={(e) => setJobForm({ ...jobForm, tags: e.target.value })}
-                placeholder="Re-test, Metering, Stop Button, etc."
+                placeholder="Re-test, Metering, Stop Button, etc.e"
                 hint={MESSAGES.TAGS_HINT}
               />
 
@@ -400,6 +442,84 @@ const Admin: React.FC = () => {
                 </div>
               )}
             </div>
+          </div>
+        )}
+
+        {/* Branding Form */}
+        {activeTab === 'branding' && (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-6">Branding Settings</h2>
+            {tenantLoading ? (
+              <div className="text-center py-8 text-gray-500">
+                <p>Loading branding settings...</p>
+              </div>
+            ) : (
+              <form onSubmit={handleBrandingSubmit} className="space-y-6">
+                <div>
+                  <label htmlFor="primary-color" className="block text-sm font-medium text-gray-700 mb-2">
+                    Primary Color
+                  </label>
+                  <div className="flex items-center gap-4">
+                    <input
+                      type="color"
+                      id="primary-color"
+                      value={brandingForm.primaryColor}
+                      onChange={(e) => setBrandingForm({ ...brandingForm, primaryColor: e.target.value })}
+                      className="w-20 h-10 rounded-lg border border-gray-300 cursor-pointer"
+                    />
+                    <input
+                      type="text"
+                      value={brandingForm.primaryColor}
+                      onChange={(e) => setBrandingForm({ ...brandingForm, primaryColor: e.target.value })}
+                      placeholder="#3b82f6"
+                      className="flex-1 w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    />
+                  </div>
+                  <p className="mt-1 text-xs text-gray-500">
+                    This color will be used throughout the app for buttons, links, and other primary elements.
+                  </p>
+                </div>
+
+                <div>
+                  <label htmlFor="logo-url" className="block text-sm font-medium text-gray-700 mb-2">
+                    Logo URL
+                  </label>
+                  <input
+                    id="logo-url"
+                    type="url"
+                    value={brandingForm.logoUrl}
+                    onChange={(e) => setBrandingForm({ ...brandingForm, logoUrl: e.target.value })}
+                    placeholder="https://example.com/logo.png"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">
+                    Enter a URL to your logo image. This will be displayed in the app header.
+                  </p>
+                  {brandingForm.logoUrl && (
+                    <div className="mt-4">
+                      <p className="text-sm font-medium text-gray-700 mb-2">Preview:</p>
+                      <div className="border border-gray-300 rounded-lg p-4 bg-gray-50 flex items-center justify-center">
+                        <img
+                          src={brandingForm.logoUrl}
+                          alt="Logo preview"
+                          className="max-h-16 max-w-full object-contain"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement
+                            target.style.display = 'none'
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="pt-4 border-t border-gray-200">
+                  <Button type="submit" fullWidth={false}>
+                    Save Branding Settings
+                  </Button>
+                </div>
+              </form>
+            )}
           </div>
         )}
       </main>

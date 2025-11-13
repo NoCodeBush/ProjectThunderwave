@@ -55,8 +55,19 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Create trigger to update updated_at on row update
-CREATE TRIGGER set_updated_at
-    BEFORE UPDATE ON public.jobs
-    FOR EACH ROW
-    EXECUTE FUNCTION public.handle_updated_at();
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_trigger
+        WHERE tgname = 'set_updated_at'
+    ) THEN
+        CREATE TRIGGER set_jobs_updated_at
+        BEFORE UPDATE ON public.jobs
+        FOR EACH ROW
+        EXECUTE FUNCTION public.handle_updated_at();
+    END IF;
+END
+$$;
 

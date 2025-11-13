@@ -2,14 +2,16 @@ import { useState, useEffect } from 'react'
 import { Job } from '../types/job'
 import { supabase } from '../supabase/config'
 import { useAuth } from '../context/AuthContext'
+import { useCurrentTenantId } from './useCurrentTenantId'
 
 export const useJobs = () => {
   const [jobs, setJobs] = useState<Job[]>([])
   const [loading, setLoading] = useState(true)
   const { currentUser } = useAuth()
+  const tenantId = useCurrentTenantId()
 
   useEffect(() => {
-    if (!currentUser) {
+    if (!currentUser || !tenantId) {
       setJobs([])
       setLoading(false)
       return
@@ -23,6 +25,7 @@ export const useJobs = () => {
           .from('jobs')
           .select('*')
           .eq('user_id', currentUser.id)
+          .eq('tenant_id', tenantId)
           .order('date', { ascending: false })
 
         if (jobsError) throw jobsError
@@ -38,6 +41,7 @@ export const useJobs = () => {
             .from('job_assignments')
             .select('job_id, user_id')
             .in('job_id', jobIds)
+            .eq('tenant_id', tenantId)
 
           if (!assignmentsError && assignmentsData) {
             assignments = assignmentsData
@@ -105,7 +109,7 @@ export const useJobs = () => {
           event: '*',
           schema: 'public',
           table: 'jobs',
-          filter: `user_id=eq.${currentUser.id}`
+          filter: `user_id=eq.${currentUser.id}&tenant_id=eq.${tenantId}`
         },
         () => {
           loadJobs()
@@ -116,11 +120,12 @@ export const useJobs = () => {
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [currentUser])
+  }, [currentUser, tenantId])
 
 
   const addJob = async (job: Omit<Job, 'id'>, assignedUserIds: string[] = []) => {
     if (!currentUser) throw new Error('User not authenticated')
+    if (!tenantId) throw new Error('Tenant not loaded')
 
     try {
       // Insert the job
@@ -133,7 +138,8 @@ export const useJobs = () => {
           location: job.location,
           tags: job.tags,
           details: job.details,
-          user_id: currentUser.id
+          user_id: currentUser.id,
+          tenant_id: tenantId
         })
         .select()
         .single()
@@ -144,7 +150,8 @@ export const useJobs = () => {
       if (assignedUserIds.length > 0) {
         const assignments = assignedUserIds.map(userId => ({
           job_id: jobData.id,
-          user_id: userId
+          user_id: userId,
+          tenant_id: tenantId
         }))
 
         const { error: assignmentError } = await supabase
@@ -168,6 +175,7 @@ export const useJobs = () => {
 
   const updateJob = async (id: string, updates: Partial<Job>) => {
     if (!currentUser) throw new Error('User not authenticated')
+    if (!tenantId) throw new Error('Tenant not loaded')
 
     try {
       const updateData: any = {}
@@ -183,6 +191,7 @@ export const useJobs = () => {
         .update(updateData)
         .eq('id', id)
         .eq('user_id', currentUser.id)
+        .eq('tenant_id', tenantId)
 
       if (error) throw error
 
@@ -198,6 +207,7 @@ export const useJobs = () => {
 
   const deleteJob = async (id: string) => {
     if (!currentUser) throw new Error('User not authenticated')
+    if (!tenantId) throw new Error('Tenant not loaded')
 
     try {
       const { error } = await supabase
@@ -205,6 +215,7 @@ export const useJobs = () => {
         .delete()
         .eq('id', id)
         .eq('user_id', currentUser.id)
+        .eq('tenant_id', tenantId)
 
       if (error) throw error
 

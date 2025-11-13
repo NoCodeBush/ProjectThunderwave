@@ -47,8 +47,21 @@ CREATE POLICY "Users can delete their own test equipment"
     USING (auth.uid() = user_id);
 
 -- Create trigger to update updated_at on row update
-CREATE TRIGGER set_updated_at
-    BEFORE UPDATE ON public.test_equipment
-    FOR EACH ROW
-    EXECUTE FUNCTION public.handle_updated_at();
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_trigger
+        WHERE tgname = 'set_test_equipment_updated_at'
+    ) THEN
+        CREATE TRIGGER set_test_equipment_updated_at
+        BEFORE UPDATE ON public.test_equipment
+        FOR EACH ROW
+        EXECUTE FUNCTION public.handle_updated_at();
+    END IF;
+END
+$$;
+
+
 

@@ -1,5 +1,7 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
+import { TenantProvider } from './context/TenantContext'
+import { useTenantSettings } from './hooks/useTenantSettings'
 import { ROUTES } from './constants/routes'
 import SignIn from './components/SignIn'
 import Dashboard from './components/Dashboard'
@@ -24,6 +26,9 @@ const PublicRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 }
 
 function AppRoutes() {
+  // Apply tenant settings (colors, logo) globally
+  useTenantSettings()
+  
   return (
     <Routes>
       <Route
@@ -58,9 +63,11 @@ function AppRoutes() {
 function App() {
   return (
     <Router>
-      <AuthProvider>
-        <AppRoutes />
-      </AuthProvider>
+      <TenantProvider>
+        <AuthProvider>
+          <AppRoutes />
+        </AuthProvider>
+      </TenantProvider>
     </Router>
   )
 }
