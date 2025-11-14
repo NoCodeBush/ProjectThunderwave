@@ -2,10 +2,10 @@
 -- Assets and job_assignments should inherit tenant context through job relationship
 
 -- Remove tenant_id from assets table
-ALTER TABLE public.assets DROP COLUMN IF EXISTS tenant_id;
+ALTER TABLE public.assets DROP COLUMN IF EXISTS tenant_id CASCADE;
 
 -- Remove tenant_id from job_assignments table
-ALTER TABLE public.job_assignments DROP COLUMN IF EXISTS tenant_id;
+ALTER TABLE public.job_assignments DROP COLUMN IF EXISTS tenant_id CASCADE;
 
 -- Drop the old indexes that included tenant_id on these tables
 DROP INDEX IF EXISTS idx_assets_tenant_id;

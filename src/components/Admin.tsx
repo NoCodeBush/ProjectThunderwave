@@ -5,6 +5,8 @@ import { useTenant } from '../context/TenantContext'
 import { useJobs } from '../hooks/useJobs'
 import { useTestEquipment } from '../hooks/useTestEquipment'
 import { useUsers } from '../hooks/useUsers'
+import { useUserRole } from '../hooks/useUserRole'
+import { useUserManagement } from '../hooks/useUserManagement'
 import { useNotifications } from '../hooks/useNotifications'
 import { MESSAGES, ROUTES } from '../constants'
 import { formatDate, isExpired, isExpiringSoon } from '../utils/date'
@@ -21,7 +23,9 @@ const Admin: React.FC = () => {
   const { tenant, updateTenant, loading: tenantLoading } = useTenant()
   const { addJob } = useJobs()
   const { equipment, addEquipment, deleteEquipment } = useTestEquipment()
-  const { users, loading: usersLoading } = useUsers()
+  const { users, loading: usersLoading, refreshUsers } = useUsers()
+  const { isAdministrator } = useUserRole()
+  const { updateUserRole, loading: userManagementLoading } = useUserManagement()
   const { notifications, markAsRead, markAllAsRead } = useNotifications()
 
   // Job form state
@@ -44,7 +48,7 @@ const Admin: React.FC = () => {
     dateTest: ''
   })
 
-  const [activeTab, setActiveTab] = useState<'jobs' | 'equipment' | 'branding'>('jobs')
+  const [activeTab, setActiveTab] = useState<'jobs' | 'equipment' | 'branding' | 'users'>('jobs')
   const [banner, setBanner] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
   
   // Branding form state
@@ -214,6 +218,18 @@ const Admin: React.FC = () => {
             >
               Branding
             </button>
+            {isAdministrator && (
+              <button
+                onClick={() => setActiveTab('users')}
+                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                  activeTab === 'users'
+                    ? 'border-primary-500 text-primary-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                Users
+              </button>
+            )}
           </div>
         </div>
 
@@ -551,6 +567,83 @@ const Admin: React.FC = () => {
                   </Button>
                 </div>
               </form>
+            )}
+          </div>
+        )}
+
+        {/* User Management (Administrators Only) */}
+        {activeTab === 'users' && isAdministrator && (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-6">User Management</h2>
+            {usersLoading ? (
+              <div className="text-center py-8 text-gray-500">
+                <p>Loading users...</p>
+              </div>
+            ) : users.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <p>No users found in this tenant.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {users.map((user) => (
+                  <div
+                    key={user.id}
+                    className="p-4 rounded-lg border border-gray-200 bg-gray-50"
+                  >
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-3">
+                          {user.avatarUrl ? (
+                            <img
+                              src={user.avatarUrl}
+                              alt={user.displayName || user.email}
+                              className="w-10 h-10 rounded-full"
+                            />
+                          ) : (
+                            <div className="w-10 h-10 rounded-full bg-primary-500 flex items-center justify-center text-white font-medium">
+                              {(user.displayName || user.email || 'U').charAt(0).toUpperCase()}
+                            </div>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-gray-900 truncate">
+                              {user.displayName || user.email}
+                            </p>
+                            <p className="text-sm text-gray-500 truncate">{user.email}</p>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <select
+                          value={user.role || 'engineer'}
+                          onChange={async (e) => {
+                            try {
+                              await updateUserRole(user.id, e.target.value as 'administrator' | 'engineer')
+                              setBanner({ message: 'User role updated successfully!', type: 'success' })
+                              refreshUsers()
+                            } catch (error) {
+                              const errorMessage = error instanceof Error ? error.message : 'Failed to update user role'
+                              setBanner({ 
+                                message: errorMessage, 
+                                type: 'error' 
+                              })
+                            }
+                          }}
+                          disabled={user.id === currentUser?.id || userManagementLoading}
+                          className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <option value="engineer">Engineer</option>
+                          <option value="administrator">Administrator</option>
+                        </select>
+                        {user.id === currentUser?.id && (
+                          <span className="text-xs text-gray-500 px-2 py-1 bg-gray-100 rounded">
+                            You
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
         )}
