@@ -28,8 +28,15 @@ const getExpectationDescription = (input: TestInput) => {
   }
 }
 
+const getExpectedValuePlaceholder = (input: TestInput): string | undefined => {
+  if (input.expected_value !== null && input.expected_value !== undefined) {
+    return input.expected_value.toString()
+  }
+  return undefined
+}
+
 const TestResultDrawer: React.FC<TestResultDrawerProps> = ({ isOpen, test, onClose, onSave }) => {
-  const inputs = test.test_inputs || []
+  const inputs = useMemo(() => test.test_inputs || [], [test.test_inputs])
   const latestResult: TestResult | undefined = useMemo(() => test.test_results?.[0], [test.test_results])
 
   const [values, setValues] = useState<Record<string, InputValueState>>({})
@@ -73,8 +80,9 @@ const TestResultDrawer: React.FC<TestResultDrawerProps> = ({ isOpen, test, onClo
       [inputId]: value
     }))
     setErrors((prev) => {
-      const { [inputId]: _removed, ...rest } = prev
-      return rest
+      const nextErrors = { ...prev }
+      delete nextErrors[inputId]
+      return nextErrors
     })
   }
 
@@ -232,6 +240,8 @@ const TestResultDrawer: React.FC<TestResultDrawerProps> = ({ isOpen, test, onClo
                         onChange={(event) => updateValue(input.id, event.target.value)}
                         required
                         error={errors[input.id]}
+                        placeholder={getExpectedValuePlaceholder(input)}
+                        enablePlaceholderFill={Boolean(getExpectedValuePlaceholder(input))}
                       />
                     )}
 
