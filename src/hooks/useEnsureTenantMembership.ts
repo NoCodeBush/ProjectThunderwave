@@ -19,7 +19,7 @@ export const useEnsureTenantMembership = () => {
 
       try {
         // Check if user is already assigned to this tenant
-        const { data: existing, error: checkError } = await supabase
+        const { error: checkError } = await supabase
           .from('user_tenants')
           .select('id')
           .eq('user_id', currentUser.id)

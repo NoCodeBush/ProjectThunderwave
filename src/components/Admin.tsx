@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useTenant } from '../context/TenantContext'
@@ -8,6 +8,7 @@ import { useUsers } from '../hooks/useUsers'
 import { useUserRole } from '../hooks/useUserRole'
 import { useUserManagement } from '../hooks/useUserManagement'
 import { useNotifications } from '../hooks/useNotifications'
+import { useTests } from '../hooks/useTests'
 import { MESSAGES, ROUTES } from '../constants'
 import { formatDate, isExpired, isExpiringSoon } from '../utils/date'
 import { parseTags } from '../utils/strings'
@@ -16,17 +17,24 @@ import Input from './ui/Input'
 import TextArea from './ui/TextArea'
 import Button from './ui/Button'
 import NotificationTray from './ui/NotificationTray'
+import TestBuilderDrawer from './TestBuilderDrawer'
 
 const Admin: React.FC = () => {
   const navigate = useNavigate()
   const { logout, currentUser } = useAuth()
   const { tenant, updateTenant, loading: tenantLoading } = useTenant()
-  const { addJob } = useJobs()
+  const { jobs, loading: jobsLoading, addJob } = useJobs()
   const { equipment, addEquipment, deleteEquipment } = useTestEquipment()
   const { users, loading: usersLoading, refreshUsers } = useUsers()
   const { isAdministrator } = useUserRole()
   const { updateUserRole, loading: userManagementLoading } = useUserManagement()
   const { notifications, markAsRead, markAllAsRead } = useNotifications()
+  const {
+    tests,
+    loading: testsLoading,
+    createTest: createNewTest,
+    deleteTest
+  } = useTests()
 
   // Job form state
   const [jobForm, setJobForm] = useState({
@@ -48,8 +56,9 @@ const Admin: React.FC = () => {
     dateTest: ''
   })
 
-  const [activeTab, setActiveTab] = useState<'jobs' | 'equipment' | 'branding' | 'users'>('jobs')
+  const [activeTab, setActiveTab] = useState<'jobs' | 'equipment' | 'branding' | 'users' | 'tests'>('jobs')
   const [banner, setBanner] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
+  const [isTestDrawerOpen, setIsTestDrawerOpen] = useState(false)
   
   // Branding form state
   const [brandingForm, setBrandingForm] = useState({
@@ -66,6 +75,12 @@ const Admin: React.FC = () => {
       })
     }
   }, [tenant])
+
+  const jobLookup = useMemo(() => {
+    const map = new Map<string, string>()
+    jobs.forEach(job => map.set(job.id, job.name))
+    return map
+  }, [jobs])
 
   const handleJobSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -208,6 +223,16 @@ const Admin: React.FC = () => {
             >
               Test Equipment
             </button>
+          <button
+            onClick={() => setActiveTab('tests')}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === 'tests'
+                ? 'border-primary-500 text-primary-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            Tests
+          </button>
             <button
               onClick={() => setActiveTab('branding')}
               className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
@@ -493,6 +518,78 @@ const Admin: React.FC = () => {
           </div>
         )}
 
+    {/* Tests Tab */}
+    {activeTab === 'tests' && (
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-4">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">Test Forms</h2>
+            <p className="text-sm text-gray-600">Create and manage commissioning tests across jobs.</p>
+          </div>
+          <Button
+            onClick={() => setIsTestDrawerOpen(true)}
+            disabled={jobs.length === 0 || jobsLoading}
+          >
+            New Test
+          </Button>
+        </div>
+
+        {testsLoading ? (
+          <div className="py-12 text-center text-gray-500">Loading tests...</div>
+        ) : tests.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 p-6 text-center text-gray-500">
+            <p className="font-medium">No tests created yet.</p>
+            <p className="text-sm">Create your first test to start capturing measurements.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {tests.map(test => (
+              <div key={test.id} className="rounded-xl border border-gray-200 p-4">
+                <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                  <div>
+                    <p className="text-base font-semibold text-gray-900">{test.name}</p>
+                    <p className="text-sm text-gray-500">
+                      Job: {jobLookup.get(test.job_id) || 'Unknown Job'}
+                    </p>
+                    <p className="text-sm text-gray-500">
+                      {test.asset_id ? 'Linked to asset' : 'Not linked to any asset'}
+                    </p>
+                  </div>
+                  <div className="text-sm text-gray-500">
+                    {test.test_inputs ? `${test.test_inputs.length} inputs defined` : 'No inputs'}
+                  </div>
+                </div>
+                {test.instructions && (
+                  <p className="mt-2 text-sm text-gray-600">
+                    {test.instructions}
+                  </p>
+                )}
+                <div className="mt-4 flex items-center justify-between border-t border-gray-100 pt-3">
+                  <span className="text-xs text-gray-500">
+                    Updated {formatDate(test.updated_at)}
+                  </span>
+                  <button
+                    onClick={async () => {
+                      try {
+                        await deleteTest(test.id)
+                        setBanner({ message: 'Test deleted successfully.', type: 'success' })
+                      } catch (error) {
+                        console.error('Failed to delete test:', error)
+                        setBanner({ message: 'Failed to delete test.', type: 'error' })
+                      }
+                    }}
+                    className="text-sm text-red-600 hover:text-red-700"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    )}
+
         {/* Branding Form */}
         {activeTab === 'branding' && (
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
@@ -648,6 +745,23 @@ const Admin: React.FC = () => {
           </div>
         )}
       </main>
+
+  <TestBuilderDrawer
+    isOpen={isTestDrawerOpen}
+    onClose={() => setIsTestDrawerOpen(false)}
+    jobs={jobs}
+    defaultJobId={jobs.length === 1 ? jobs[0].id : undefined}
+    onCreate={async (payload) => {
+      try {
+        await createNewTest(payload)
+        setBanner({ message: 'Test created successfully!', type: 'success' })
+        setIsTestDrawerOpen(false)
+      } catch (error) {
+        console.error('Failed to create test:', error)
+        setBanner({ message: 'Failed to create test.', type: 'error' })
+      }
+    }}
+  />
     </div>
   )
 }

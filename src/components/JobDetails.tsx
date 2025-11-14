@@ -2,7 +2,7 @@ import React from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useJobs } from '../hooks/useJobs'
 import { useAuth } from '../context/AuthContext'
-import { ROUTES, MESSAGES } from '../constants'
+import { ROUTES } from '../constants'
 import { formatDate } from '../utils/date'
 import Button from './ui/Button'
 
@@ -75,10 +75,7 @@ const JobDetails: React.FC = () => {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
       ),
-      action: () => {
-        // TODO: Navigate to commissioning test
-        console.log('Navigate to commissioning test for job:', job.id)
-      }
+      action: () => navigate(ROUTES.JOB_TESTS.replace(':jobId', job.id))
     },
     {
       title: 'Image/Scan',
@@ -101,7 +98,7 @@ const JobDetails: React.FC = () => {
       {/* Header */}
       <header className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
+          <div className="flex items-center justify-between h-16 py-2">
             <div className="flex items-center gap-3">
               <button
                 onClick={() => navigate(ROUTES.DASHBOARD)}
@@ -255,6 +252,7 @@ const JobDetails: React.FC = () => {
             </div>
           </div>
         )}
+
       </main>
     </div>
   )

@@ -5,6 +5,7 @@ export const ROUTES = {
   ADMIN: '/admin',
   JOB_DETAILS: '/job/:jobId',
   ASSET_MANAGEMENT: '/job/:jobId/assets',
+  JOB_TESTS: '/job/:jobId/tests',
   ROOT: '/',
 } as const
 

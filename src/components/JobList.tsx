@@ -124,8 +124,24 @@ const JobCard: React.FC<{ job: Job; onDelete: (id: string) => void }> = ({ job, 
         )}
 
         {/* Expand/Collapse indicator */}
-        <div className="flex items-center justify-center mt-3 pt-3 border-t border-gray-100">
-              <span className="text-xs text-gray-500 flex items-center gap-1">
+        <div
+          className="flex items-center justify-center mt-3 pt-3 border-t border-gray-100 cursor-pointer select-none"
+          onClick={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            setExpanded(prev => !prev)
+          }}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault()
+              e.stopPropagation()
+              setExpanded(prev => !prev)
+            }
+          }}
+        >
+          <span className="text-xs text-gray-500 flex items-center gap-1">
             {expanded ? MESSAGES.TAP_TO_COLLAPSE : MESSAGES.CLICK_FOR_FULL_DETAILS}
             <svg
               className={`w-4 h-4 transition-transform ${expanded ? 'rotate-180' : ''}`}

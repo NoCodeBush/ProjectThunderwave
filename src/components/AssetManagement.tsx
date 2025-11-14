@@ -1,29 +1,42 @@
-import React, { useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useJobs } from '../hooks/useJobs'
 import { useAssets } from '../hooks/useAssets'
 import { Asset, AssetType, ASSET_TYPE_CONFIGS } from '../types/asset'
+import { useTests } from '../hooks/useTests'
 import { ROUTES } from '../constants'
 import Banner from './Banner'
 import Button from './ui/Button'
 import Input from './ui/Input'
 import TextArea from './ui/TextArea'
+import TestBuilderDrawer from './TestBuilderDrawer'
+import { Test } from '../types/test'
 
 const AssetManagement: React.FC = () => {
   const { jobId } = useParams<{ jobId: string }>()
   const navigate = useNavigate()
   const { jobs, loading: jobsLoading } = useJobs()
   const { assets, loading: assetsLoading, addAsset, deleteAsset, refreshAssets } = useAssets(jobId)
+  const {
+    tests: jobTests,
+    loading: testsLoading,
+    createTest,
+    linkTestToAsset,
+    unlinkTestFromAsset
+  } = useTests({ jobId })
   const [showAddForm, setShowAddForm] = useState(false)
   const [formData, setFormData] = useState({
     asset_type: '' as AssetType
   })
   const [properties, setProperties] = useState<Record<string, any>>({})
   const [banner, setBanner] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
+  const [isTestDrawerOpen, setIsTestDrawerOpen] = useState(false)
+  const [assetForTest, setAssetForTest] = useState<Asset | null>(null)
 
   const job = jobs.find(j => j.id === jobId)
+  const unlinkedTests = useMemo(() => jobTests.filter(test => !test.asset_id), [jobTests])
 
-  if (jobsLoading || assetsLoading) {
+  if (jobsLoading || assetsLoading || testsLoading) {
     return (
       <div className="min-h-screen bg-gray-50 safe-area-inset flex items-center justify-center">
         <div className="text-center">
@@ -144,6 +157,15 @@ const AssetManagement: React.FC = () => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                 </svg>
                 Refresh
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setAssetForTest(null)
+                  setIsTestDrawerOpen(true)
+                }}
+              >
+                Create Test
               </Button>
               <Button onClick={() => setShowAddForm(!showAddForm)} variant="primary">
                 {showAddForm ? 'Cancel' : 'Add Asset'}
@@ -274,24 +296,89 @@ const AssetManagement: React.FC = () => {
           ) : (
             <div className="divide-y divide-gray-200">
               {assets.map((asset) => (
-                <AssetCard key={asset.id} asset={asset} onDelete={handleDeleteAsset} />
+                <AssetCard
+                  key={asset.id}
+                  asset={asset}
+                  onDelete={handleDeleteAsset}
+                  onCreateTest={() => {
+                    setAssetForTest(asset)
+                    setIsTestDrawerOpen(true)
+                  }}
+                  tests={jobTests}
+                  unlinkedTests={unlinkedTests}
+                  onLinkTest={async (testId) => {
+                    if (!job) return
+                    try {
+                      await linkTestToAsset(testId, asset.id, job.id)
+                      setBanner({ message: 'Test linked to asset successfully!', type: 'success' })
+                    } catch (error) {
+                      console.error('Error linking test:', error)
+                      setBanner({ message: 'Failed to link test.', type: 'error' })
+                    }
+                  }}
+                  onUnlinkTest={async (testId) => {
+                    try {
+                      await unlinkTestFromAsset(testId)
+                      setBanner({ message: 'Test unlinked successfully.', type: 'success' })
+                    } catch (error) {
+                      console.error('Error unlinking test:', error)
+                      setBanner({ message: 'Failed to unlink test.', type: 'error' })
+                    }
+                  }}
+                />
               ))}
             </div>
           )}
         </div>
       </main>
+      <TestBuilderDrawer
+        isOpen={isTestDrawerOpen}
+        onClose={() => {
+          setIsTestDrawerOpen(false)
+          setAssetForTest(null)
+        }}
+        jobs={job ? [job] : []}
+        defaultJobId={job?.id}
+        defaultAssetId={assetForTest?.id}
+        defaultAssetLabel={assetForTest ? getAssetDisplayName(assetForTest) : undefined}
+        lockJob
+        lockAsset={Boolean(assetForTest)}
+        onCreate={async (payload) => {
+          try {
+            await createTest(payload)
+            setBanner({ message: 'Test created successfully!', type: 'success' })
+            setIsTestDrawerOpen(false)
+            setAssetForTest(null)
+          } catch (error) {
+            console.error('Error creating test:', error)
+            setBanner({ message: 'Failed to create test.', type: 'error' })
+          }
+        }}
+      />
     </div>
   )
 }
 
 // Asset Card Component
-const AssetCard: React.FC<{ asset: Asset; onDelete: (id: string) => void }> = ({ asset, onDelete }) => {
+const AssetCard: React.FC<{
+  asset: Asset
+  onDelete: (id: string) => void
+  onCreateTest: () => void
+  tests: Test[]
+  unlinkedTests: Test[]
+  onLinkTest: (testId: string) => Promise<void>
+  onUnlinkTest: (testId: string) => Promise<void>
+}> = ({ asset, onDelete, onCreateTest, tests, unlinkedTests, onLinkTest, onUnlinkTest }) => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [selectedTestId, setSelectedTestId] = useState('')
+  const [linking, setLinking] = useState(false)
+  const [unlinkingId, setUnlinkingId] = useState<string | null>(null)
   const config = ASSET_TYPE_CONFIGS[asset.asset_type] || {
     label: 'Unknown Asset Type',
     icon: '❓',
     properties: []
   }
+  const assetTests = tests.filter(test => test.asset_id === asset.id)
 
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -305,24 +392,24 @@ const AssetCard: React.FC<{ asset: Asset; onDelete: (id: string) => void }> = ({
   }
 
   return (
-    <div className="p-6 hover:bg-gray-50 transition-colors">
+    <div className="p-6 transition-colors hover:bg-gray-50">
       <div className="flex items-start justify-between">
         <div className="flex items-start gap-4">
-          <div className="w-12 h-12 bg-primary-100 rounded-lg flex items-center justify-center flex-shrink-0">
+          <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-lg bg-primary-100">
             <span className="text-xl">{config.icon ? config.icon : null}</span>
           </div>
 
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-3 mb-2">
-              <h3 className="text-lg font-semibold text-gray-900 truncate">
+          <div className="min-w-0 flex-1">
+            <div className="mb-2 flex items-center gap-3">
+              <h3 className="truncate text-lg font-semibold text-gray-900">
                 {asset.make && asset.model ? `${asset.make} ${asset.model}` : config.label}
               </h3>
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary-100 text-primary-800">
+              <span className="inline-flex items-center rounded-full bg-primary-100 px-2.5 py-0.5 text-xs font-medium text-primary-800">
                 {config.label}
               </span>
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm text-gray-600 mb-3">
+            <div className="mb-3 grid grid-cols-2 gap-4 text-sm text-gray-600 md:grid-cols-4">
               {asset.serial_number && (
                 <div>
                   <span className="font-medium">Serial:</span> {asset.serial_number}
@@ -349,7 +436,7 @@ const AssetCard: React.FC<{ asset: Asset; onDelete: (id: string) => void }> = ({
                   return (
                     <div key={key} className="text-sm text-gray-600">
                       <span className="font-medium">{propConfig.label}:</span> {value}
-                      {propConfig.unit && <span className="text-gray-500 ml-1">({propConfig.unit})</span>}
+                      {propConfig.unit && <span className="ml-1 text-gray-500">({propConfig.unit})</span>}
                     </div>
                   )
                 })}
@@ -360,26 +447,122 @@ const AssetCard: React.FC<{ asset: Asset; onDelete: (id: string) => void }> = ({
 
         <button
           onClick={handleDelete}
-          className={`flex-shrink-0 p-2 rounded-lg transition-colors ${
+          className={`rounded-lg p-2 transition-colors ${
             showDeleteConfirm
               ? 'bg-red-100 text-red-600'
-              : 'text-gray-400 hover:text-red-600 hover:bg-red-50'
+              : 'text-gray-400 hover:bg-red-50 hover:text-red-600'
           }`}
           aria-label={showDeleteConfirm ? 'Confirm delete' : 'Delete asset'}
         >
           {showDeleteConfirm ? (
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
             </svg>
           ) : (
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
             </svg>
           )}
         </button>
       </div>
+
+      <div className="mt-4 rounded-xl border border-gray-100 p-4">
+        <div className="mb-4 flex items-center justify-between">
+          <div>
+            <h4 className="text-sm font-semibold text-gray-900">Tests</h4>
+            <p className="text-xs text-gray-500">{assetTests.length} linked</p>
+          </div>
+          <Button size="sm" onClick={onCreateTest}>
+            New Test
+          </Button>
+        </div>
+
+        {assetTests.length === 0 ? (
+          <p className="text-sm text-gray-500">No tests linked yet.</p>
+        ) : (
+          <div className="space-y-3">
+            {assetTests.map(test => (
+              <div key={test.id} className="rounded-lg border border-gray-200 p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900">{test.name}</p>
+                    <p className="text-xs text-gray-500">
+                      {test.test_inputs ? `${test.test_inputs.length} inputs` : 'Inputs pending'}
+                    </p>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      setUnlinkingId(test.id)
+                      try {
+                        await onUnlinkTest(test.id)
+                      } finally {
+                        setUnlinkingId(null)
+                      }
+                    }}
+                    className="text-xs text-red-600 hover:text-red-700"
+                    disabled={unlinkingId === test.id}
+                  >
+                    {unlinkingId === test.id ? 'Removing...' : 'Unlink'}
+                  </button>
+                </div>
+                {test.instructions && (
+                  <p className="mt-2 text-xs text-gray-600">
+                    {test.instructions}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {unlinkedTests.length > 0 && (
+          <form
+            className="mt-4 space-y-2 rounded-lg bg-gray-50 p-3"
+            onSubmit={async (e) => {
+              e.preventDefault()
+              if (!selectedTestId) return
+              setLinking(true)
+              try {
+                await onLinkTest(selectedTestId)
+                setSelectedTestId('')
+              } finally {
+                setLinking(false)
+              }
+            }}
+          >
+            <label className="text-xs font-medium text-gray-700">
+              Link existing test
+            </label>
+            <div className="flex flex-col gap-2 md:flex-row">
+              <select
+                className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                value={selectedTestId}
+                onChange={(e) => setSelectedTestId(e.target.value)}
+              >
+                <option value="">Select a test</option>
+                {unlinkedTests.map(test => (
+                  <option key={test.id} value={test.id}>
+                    {test.name}
+                  </option>
+                ))}
+              </select>
+              <Button type="submit" size="sm" disabled={!selectedTestId || linking}>
+                {linking ? 'Linking...' : 'Link Test'}
+              </Button>
+            </div>
+          </form>
+        )}
+      </div>
     </div>
   )
+}
+
+const getAssetDisplayName = (asset: Asset) => {
+  if (asset.make && asset.model) return `${asset.make} ${asset.model}`
+  if (asset.make) return asset.make
+  if (asset.model) return asset.model
+  const config = ASSET_TYPE_CONFIGS[asset.asset_type]
+  return config?.label || 'Asset'
 }
 
 export default AssetManagement

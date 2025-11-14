@@ -9,6 +9,7 @@ import Dashboard from './components/Dashboard'
 import Admin from './components/Admin'
 import JobDetails from './components/JobDetails'
 import AssetManagement from './components/AssetManagement'
+import JobTests from './components/JobTests'
 
 const PrivateRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { currentUser } = useAuth()
@@ -73,6 +74,14 @@ function AppRoutes() {
         element={
           <PrivateRoute>
             <AssetManagement />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path={ROUTES.JOB_TESTS}
+        element={
+          <PrivateRoute>
+            <JobTests />
           </PrivateRoute>
         }
       />

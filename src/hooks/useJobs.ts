@@ -41,7 +41,6 @@ export const useJobs = () => {
             .from('job_assignments')
             .select('job_id, user_id')
             .in('job_id', jobIds)
-            .eq('tenant_id', tenantId)
 
           if (!assignmentsError && assignmentsData) {
             assignments = assignmentsData
@@ -151,11 +150,10 @@ export const useJobs = () => {
       if (jobError) throw jobError
 
       // Insert job assignments if any users are assigned
-      if (assignedUserIds.length > 0) {
+        if (assignedUserIds.length > 0) {
         const assignments = assignedUserIds.map(userId => ({
           job_id: jobData.id,
-          user_id: userId,
-          tenant_id: tenantId
+            user_id: userId
         }))
 
         const { error: assignmentError } = await supabase
