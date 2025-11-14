@@ -2,17 +2,18 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../supabase/config'
 import { useCurrentTenantId } from './useCurrentTenantId'
 import { useAuth } from '../context/AuthContext'
-import { CreateTestPayload, Test } from '../types/test'
+import { CreateTestPayload, SaveTestResultPayload, Test, TestResult } from '../types/test'
 
 interface UseTestsOptions {
   jobId?: string
   assetId?: string
   unlinkedOnly?: boolean
   includeInputs?: boolean
+  includeResults?: boolean
 }
 
 export const useTests = (options: UseTestsOptions = {}) => {
-  const { jobId, assetId, unlinkedOnly = false, includeInputs = true } = options
+  const { jobId, assetId, unlinkedOnly = false, includeInputs = true, includeResults = true } = options
   const [tests, setTests] = useState<Test[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -30,10 +31,22 @@ export const useTests = (options: UseTestsOptions = {}) => {
       setLoading(true)
       setError(null)
 
+      const selectColumns = [
+        '*',
+        includeInputs ? 'test_inputs(*)' : null,
+        includeResults ? 'test_results(*)' : null
+      ]
+        .filter(Boolean)
+        .join(', ')
+
       let query = supabase
         .from('tests')
-        .select(includeInputs ? '*, test_inputs(*)' : '*')
+        .select(selectColumns)
         .order('created_at', { ascending: false })
+
+      if (includeResults) {
+        query = query.order('submitted_at', { ascending: false, foreignTable: 'test_results' })
+      }
 
       if (jobId) {
         query = query.eq('job_id', jobId)
@@ -53,7 +66,8 @@ export const useTests = (options: UseTestsOptions = {}) => {
         ...row,
         test_inputs: row.test_inputs
           ? [...row.test_inputs].sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
-          : undefined
+          : undefined,
+        test_results: row.test_results || []
       })) as Test[]
 
       setTests(normalized)
@@ -207,11 +221,76 @@ export const useTests = (options: UseTestsOptions = {}) => {
     setTests(prev => prev.filter(test => test.id !== testId))
   }
 
+  const saveTestResult = async (payload: SaveTestResultPayload) => {
+    if (!currentUser) throw new Error('User not authenticated')
+
+    const { testId, jobId: payloadJobId, assetId: payloadAssetId, responses, status = 'submitted', resultId } = payload
+
+    if (!testId) {
+      throw new Error('A test must be specified before saving results')
+    }
+
+    if (!payloadJobId) {
+      throw new Error('A job must be specified before saving results')
+    }
+
+    if (!responses || responses.length === 0) {
+      throw new Error('At least one response is required to save results')
+    }
+
+    const baseData = {
+      test_id: testId,
+      job_id: payloadJobId,
+      asset_id: payloadAssetId || null,
+      responses,
+      status,
+      submitted_by: currentUser.id
+    }
+
+    let result: TestResult | null = null
+
+    if (resultId) {
+      const { data, error } = await supabase
+        .from('test_results')
+        .update({
+          ...baseData,
+          submitted_at: new Date().toISOString()
+        })
+        .eq('id', resultId)
+        .select()
+        .single()
+
+      if (error) {
+        console.error('Error updating test result:', error)
+        throw error
+      }
+
+      result = data as TestResult
+    } else {
+      const { data, error } = await supabase
+        .from('test_results')
+        .insert(baseData)
+        .select()
+        .single()
+
+      if (error) {
+        console.error('Error saving test result:', error)
+        throw error
+      }
+
+      result = data as TestResult
+    }
+
+    await fetchTests()
+    return result
+  }
+
   return {
     tests,
     loading,
     error,
     createTest,
+    saveTestResult,
     linkTestToAsset,
     unlinkTestFromAsset,
     deleteTest,

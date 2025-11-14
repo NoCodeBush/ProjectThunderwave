@@ -2,6 +2,8 @@ export type TestInputType = 'number' | 'text' | 'boolean'
 
 export type TestExpectedType = 'range' | 'minimum' | 'maximum' | 'exact'
 
+export type TestResultStatus = 'draft' | 'submitted'
+
 export interface TestInput {
   id: string
   test_id: string
@@ -18,6 +20,24 @@ export interface TestInput {
   updated_at: string
 }
 
+export interface TestResultResponse {
+  inputId: string
+  value: number | string | boolean | null
+  notes?: string | null
+}
+
+export interface TestResult {
+  id: string
+  test_id: string
+  job_id: string
+  asset_id?: string | null
+  responses: TestResultResponse[]
+  status: TestResultStatus
+  submitted_by: string
+  submitted_at: string
+  updated_at: string
+}
+
 export interface Test {
   id: string
   job_id: string
@@ -29,6 +49,7 @@ export interface Test {
   created_at: string
   updated_at: string
   test_inputs?: TestInput[]
+  test_results?: TestResult[]
 }
 
 export interface TestInputDraft {
@@ -49,5 +70,14 @@ export interface CreateTestPayload {
   jobId: string
   assetId?: string | null
   inputs: TestInputDraft[]
+}
+
+export interface SaveTestResultPayload {
+  testId: string
+  jobId: string
+  assetId?: string | null
+  responses: TestResultResponse[]
+  status?: TestResultStatus
+  resultId?: string
 }
 

@@ -7,15 +7,18 @@ import { formatDate } from '../utils/date'
 import Button from './ui/Button'
 import Input from './ui/Input'
 import TestBuilderDrawer from './TestBuilderDrawer'
+import TestResultDrawer from './TestResultDrawer'
+import { TestResultResponse, TestResultStatus } from '../types/test'
 
 const JobTests: React.FC = () => {
   const { jobId } = useParams<{ jobId: string }>()
   const navigate = useNavigate()
   const { jobs, loading: jobsLoading } = useJobs()
-  const { tests, loading: testsLoading, createTest } = useTests({ jobId })
+  const { tests, loading: testsLoading, createTest, saveTestResult } = useTests({ jobId })
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [onlyUnlinked, setOnlyUnlinked] = useState(false)
+  const [activeTestId, setActiveTestId] = useState<string | null>(null)
 
   const job = jobs.find(j => j.id === jobId)
 
@@ -31,6 +34,30 @@ const JobTests: React.FC = () => {
       )
     })
   }, [tests, search, onlyUnlinked])
+
+  const activeTest = useMemo(() => {
+    if (!activeTestId) return null
+    return tests.find(test => test.id === activeTestId) || null
+  }, [activeTestId, tests])
+
+  const handleSaveResults = async (
+    responses: TestResultResponse[],
+    existingResultId?: string,
+    status: TestResultStatus = 'submitted'
+  ) => {
+    if (!activeTest) {
+      throw new Error('Cannot save results without an active test.')
+    }
+
+    await saveTestResult({
+      testId: activeTest.id,
+      jobId: activeTest.job_id,
+      assetId: activeTest.asset_id,
+      responses,
+      resultId: existingResultId,
+      status
+    })
+  }
 
   if (jobsLoading || testsLoading) {
     return (
@@ -138,34 +165,68 @@ const JobTests: React.FC = () => {
             </div>
           ) : (
             <div className="space-y-3">
-              {filteredTests.map((test) => (
-                <div
-                  key={test.id}
-                  className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm"
-                >
-                  <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                    <div>
-                      <p className="text-base font-semibold text-gray-900">{test.name}</p>
-                      <p className="text-sm text-gray-600">
-                        {test.asset_id ? `Linked to asset` : 'Unlinked test'}
-                      </p>
+              {filteredTests.map((test) => {
+                const latestResult = test.test_results?.[0]
+                return (
+                  <div
+                    key={test.id}
+                    className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm"
+                  >
+                    <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                      <div>
+                        <p className="text-base font-semibold text-gray-900">{test.name}</p>
+                        <p className="text-sm text-gray-600">
+                          {test.asset_id ? `Linked to asset` : 'Unlinked test'}
+                        </p>
+                      </div>
+                      <div className="text-sm text-gray-500">
+                        {test.test_inputs ? `${test.test_inputs.length} inputs` : 'Inputs pending'}
+                      </div>
                     </div>
-                    <div className="text-sm text-gray-500">
-                      {test.test_inputs ? `${test.test_inputs.length} inputs` : 'Inputs pending'}
+                    {test.description && (
+                      <p className="mt-2 text-sm text-gray-600">{test.description}</p>
+                    )}
+                    {test.instructions && (
+                      <p className="mt-2 text-sm text-gray-500 line-clamp-2">{test.instructions}</p>
+                    )}
+                    <div className="mt-3 flex flex-wrap items-center gap-4 text-xs text-gray-500">
+                      <span>Created {formatDate(test.created_at)}</span>
+                      <span>Updated {formatDate(test.updated_at)}</span>
+                      {latestResult ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-green-50 px-3 py-1 text-green-700">
+                          <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+                            <path
+                              fillRule="evenodd"
+                              d="M16.707 5.293a1 1 0 00-1.414 0L9 11.586 6.707 9.293a1 1 0 00-1.414 1.414l3 3a1 1 0 001.414 0l7-7a1 1 0 000-1.414z"
+                              clipRule="evenodd"
+                            />
+                          </svg>
+                          Completed {formatDate(latestResult.submitted_at)}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-3 py-1 text-amber-700">
+                          <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+                            <path
+                              fillRule="evenodd"
+                              d="M10 18a8 8 0 100-16 8 8 0 000 16zm.75-12.75a.75.75 0 00-1.5 0v4.5c0 .414.336.75.75.75h3a.75.75 0 000-1.5h-2.25V5.25z"
+                              clipRule="evenodd"
+                            />
+                          </svg>
+                          Awaiting submission
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-4 flex flex-wrap items-center justify-end gap-3">
+                      <Button
+                        size="sm"
+                        onClick={() => setActiveTestId(test.id)}
+                      >
+                        {latestResult ? 'View / Edit Results' : 'Complete Test'}
+                      </Button>
                     </div>
                   </div>
-                  {test.description && (
-                    <p className="mt-2 text-sm text-gray-600">{test.description}</p>
-                  )}
-                  {test.instructions && (
-                    <p className="mt-2 text-sm text-gray-500 line-clamp-2">{test.instructions}</p>
-                  )}
-                  <div className="mt-3 flex flex-wrap items-center gap-4 text-xs text-gray-500">
-                    <span>Created {formatDate(test.created_at)}</span>
-                    <span>Updated {formatDate(test.updated_at)}</span>
-                  </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </div>
@@ -182,6 +243,15 @@ const JobTests: React.FC = () => {
           setIsDrawerOpen(false)
         }}
       />
+
+      {activeTest && (
+        <TestResultDrawer
+          isOpen={Boolean(activeTest)}
+          test={activeTest}
+          onClose={() => setActiveTestId(null)}
+          onSave={handleSaveResults}
+        />
+      )}
     </div>
   )
 }
