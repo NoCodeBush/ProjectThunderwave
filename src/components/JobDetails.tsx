@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useJobs } from '../hooks/useJobs'
 import { useAuth } from '../context/AuthContext'
@@ -9,8 +9,9 @@ import Button from './ui/Button'
 const JobDetails: React.FC = () => {
   const { jobId } = useParams<{ jobId: string }>()
   const navigate = useNavigate()
-  const { jobs, loading } = useJobs()
+  const { jobs, loading, assignUserToJob, unassignUserFromJob } = useJobs()
   const { currentUser } = useAuth()
+  const [assigning, setAssigning] = useState(false)
 
   const job = jobs.find(j => j.id === jobId)
 
@@ -40,6 +41,23 @@ const JobDetails: React.FC = () => {
   }
 
   const isAssignedToCurrentUser = job.assignedUsers?.some(user => user.id === currentUser?.id)
+
+  const handleSelfAssignment = async () => {
+    if (!currentUser || !jobId) return
+
+    setAssigning(true)
+    try {
+      if (isAssignedToCurrentUser) {
+        await unassignUserFromJob(jobId, currentUser.id)
+      } else {
+        await assignUserToJob(jobId, currentUser.id)
+      }
+    } catch (error) {
+      console.error('Error updating assignment:', error)
+    } finally {
+      setAssigning(false)
+    }
+  }
 
   const actionButtons = [
     {
@@ -79,7 +97,7 @@ const JobDetails: React.FC = () => {
     },
     {
       title: 'Image/Scan',
-      description: 'Take photos and scan documents',
+      description: 'Take photos and apply scanner effects',
       icon: (
         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
@@ -87,8 +105,7 @@ const JobDetails: React.FC = () => {
         </svg>
       ),
       action: () => {
-        // TODO: Navigate to image/scan
-        console.log('Navigate to image/scan for job:', job.id)
+        navigate(ROUTES.IMAGE_SCAN.replace(':jobId', job.id))
       }
     }
   ]
@@ -98,25 +115,25 @@ const JobDetails: React.FC = () => {
       {/* Header */}
       <header className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16 py-2">
-            <div className="flex items-center gap-3">
+          <div className="flex items-center justify-between min-h-16 py-3">
+            <div className="flex items-center gap-3 min-w-0 flex-1">
               <button
                 onClick={() => navigate(ROUTES.DASHBOARD)}
-                className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+                className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors flex-shrink-0"
                 aria-label="Back to dashboard"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                 </svg>
               </button>
-              <div className="w-8 h-8 bg-primary-500 rounded-lg flex items-center justify-center">
+              <div className="w-8 h-8 bg-primary-500 rounded-lg flex items-center justify-center flex-shrink-0">
                 <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                 </svg>
               </div>
-              <div>
-                <h1 className="text-xl font-bold text-gray-900">{job.name}</h1>
-                <p className="text-sm text-gray-600">{job.client}</p>
+              <div className="min-w-0 flex-1">
+                <h1 className="text-lg sm:text-xl font-bold text-gray-900 truncate">{job.name}</h1>
+                <p className="text-sm text-gray-600 truncate">{job.client}</p>
               </div>
             </div>
           </div>
@@ -184,7 +201,24 @@ const JobDetails: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Assigned Users</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-sm font-medium text-gray-700">Assigned Users</label>
+                  <Button
+                    onClick={handleSelfAssignment}
+                    disabled={assigning}
+                    variant="secondary"
+                    className="text-xs px-3 py-1"
+                  >
+                    {assigning ? (
+                      <div className="flex items-center gap-1">
+                        <div className="w-3 h-3 border border-gray-300 border-t-gray-600 rounded-full animate-spin"></div>
+                        {isAssignedToCurrentUser ? 'Unassigning...' : 'Assigning...'}
+                      </div>
+                    ) : (
+                      isAssignedToCurrentUser ? 'Unassign Me' : 'Assign Me'
+                    )}
+                  </Button>
+                </div>
                 <div className="space-y-1">
                   {job.assignedUsers && job.assignedUsers.length > 0 ? (
                     job.assignedUsers.map((user) => (

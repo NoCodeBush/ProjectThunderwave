@@ -36,7 +36,7 @@ export const MESSAGES = {
   
   // Form labels and hints
   TAGS_HINT: 'Separate multiple tags with commas',
-  ASSIGN_USERS_HINT: 'Select one or more users to assign this job to',
+  ASSIGN_USERS_HINT: 'Select users to assign this job to. You can assign yourself and other team members.',
   EXPIRY_HINT: 'Expiry will be automatically set to 1 year from test date',
   
   // Actions

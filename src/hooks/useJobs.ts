@@ -17,24 +17,101 @@ export const useJobs = () => {
       return
     }
 
-    const loadJobs = async () => {
-      try {
-        setLoading(true)
-        // Load jobs with their assignments
-        const { data: jobsData, error: jobsError } = await supabase
+    loadJobs()
+
+    // Subscribe to real-time changes
+    const jobsChannel = supabase
+      .channel('jobs-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'jobs',
+          filter: `user_id=eq.${currentUser.id}&tenant_id=eq.${tenantId}`
+        },
+        () => {
+          loadJobs()
+        }
+      )
+      .subscribe()
+
+    // Also subscribe to job assignment changes for jobs the user is assigned to
+    const assignmentsChannel = supabase
+      .channel('job-assignments-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'job_assignments',
+          filter: `user_id=eq.${currentUser.id}`
+        },
+        () => {
+          loadJobs()
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(jobsChannel)
+      supabase.removeChannel(assignmentsChannel)
+    }
+  }, [currentUser, tenantId])
+
+  const loadJobs = async () => {
+    try {
+      setLoading(true)
+
+        // Get jobs owned by the user
+        const { data: ownedJobs, error: ownedJobsError } = await supabase
           .from('jobs')
           .select('*')
-          .eq('user_id', currentUser.id)
+          .eq('user_id', currentUser?.id)
           .eq('tenant_id', tenantId)
-          .order('date', { ascending: false })
 
-        if (jobsError) throw jobsError
+        if (ownedJobsError) throw ownedJobsError
+
+        // Get jobs assigned to the user (but not owned by them)
+        const { data: assignedJobsData, error: assignedJobsError } = await supabase
+          .from('job_assignments')
+          .select(`
+            job_id,
+            jobs!inner (
+              id,
+              name,
+              client,
+              date,
+              location,
+              tags,
+              details,
+              site_contact,
+              site_phone_number,
+              user_id,
+              tenant_id,
+              created_at,
+              updated_at
+            )
+          `)
+          .eq('user_id', currentUser?.id)
+          .eq('jobs.tenant_id', tenantId)
+
+        if (assignedJobsError) throw assignedJobsError
+
+        // Extract assigned jobs (avoiding duplicates with owned jobs)
+        const assignedJobs = (assignedJobsData || [])
+          .map((item: any) => item.jobs)
+          .filter((job: any) => !ownedJobs?.some((owned: any) => owned.id === job.id))
+
+        // Combine owned and assigned jobs
+        const allJobs = [...(ownedJobs || []), ...(assignedJobs || [])]
+          .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
 
         // Load assignments for all jobs
-        const jobIds = (jobsData || []).map((job: any) => job.id)
+        const jobIds = allJobs.map((job: any) => job.id)
         let assignments: any[] = []
         let userProfiles: Map<string, any> = new Map()
-        
+
         if (jobIds.length > 0) {
           // Get all assignments
           const { data: assignmentsData, error: assignmentsError } = await supabase
@@ -44,17 +121,17 @@ export const useJobs = () => {
 
           if (!assignmentsError && assignmentsData) {
             assignments = assignmentsData
-            
+
             // Get unique user IDs
             const userIds = [...new Set(assignments.map((a: any) => a.user_id))]
-            
+
             // Fetch user profiles
             if (userIds.length > 0) {
               const { data: profilesData, error: profilesError } = await supabase
                 .from('user_profiles')
                 .select('id, email, display_name')
                 .in('id', userIds)
-              
+
               if (!profilesError && profilesData) {
                 profilesData.forEach((profile: any) => {
                   userProfiles.set(profile.id, profile)
@@ -64,8 +141,15 @@ export const useJobs = () => {
           }
         }
 
+        console.log('🔍 Jobs loaded:', {
+          ownedJobs: (ownedJobs || []).length,
+          assignedJobs: (assignedJobs || []).length,
+          totalJobs: allJobs.length,
+          jobs: allJobs.map(j => ({ id: j.id, name: j.name, assignments: assignments.filter(a => a.job_id === j.id).length }))
+        })
+
         // Transform database format to Job format
-        const transformedJobs: Job[] = (jobsData || []).map((row: any) => {
+        const transformedJobs: Job[] = allJobs.map((row: any) => {
           const jobAssignments = assignments
             .filter((a: any) => a.job_id === row.id)
             .map((a: any) => {
@@ -99,30 +183,6 @@ export const useJobs = () => {
       }
     }
 
-    loadJobs()
-
-    // Subscribe to real-time changes
-    const channel = supabase
-      .channel('jobs-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'jobs',
-          filter: `user_id=eq.${currentUser.id}&tenant_id=eq.${tenantId}`
-        },
-        () => {
-          loadJobs()
-        }
-      )
-      .subscribe()
-
-    return () => {
-      supabase.removeChannel(channel)
-    }
-  }, [currentUser, tenantId])
-
 
   const addJob = async (job: Omit<Job, 'id'>, assignedUserIds: string[] = []) => {
     if (!currentUser) throw new Error('User not authenticated')
@@ -153,7 +213,7 @@ export const useJobs = () => {
         if (assignedUserIds.length > 0) {
         const assignments = assignedUserIds.map(userId => ({
           job_id: jobData.id,
-            user_id: userId
+          user_id: userId
         }))
 
         const { error: assignmentError } = await supabase
@@ -231,12 +291,55 @@ export const useJobs = () => {
     }
   }
 
+  const assignUserToJob = async (jobId: string, userId: string) => {
+    if (!tenantId) throw new Error('Tenant not loaded')
+
+    try {
+      const { error } = await supabase
+        .from('job_assignments')
+        .insert({
+          job_id: jobId,
+          user_id: userId
+        })
+
+      if (error) throw error
+
+      // Reload jobs to get updated assignments
+      await loadJobs()
+    } catch (error) {
+      console.error('Error assigning user to job:', error)
+      throw error
+    }
+  }
+
+  const unassignUserFromJob = async (jobId: string, userId: string) => {
+    if (!tenantId) throw new Error('Tenant not loaded')
+
+    try {
+      const { error } = await supabase
+        .from('job_assignments')
+        .delete()
+        .eq('job_id', jobId)
+        .eq('user_id', userId)
+
+      if (error) throw error
+
+      // Reload jobs to get updated assignments
+      await loadJobs()
+    } catch (error) {
+      console.error('Error unassigning user from job:', error)
+      throw error
+    }
+  }
+
   return {
     jobs,
     loading,
     addJob,
     updateJob,
-    deleteJob
+    deleteJob,
+    assignUserToJob,
+    unassignUserFromJob
   }
 }
 

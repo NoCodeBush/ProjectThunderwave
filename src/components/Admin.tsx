@@ -270,6 +270,7 @@ const Admin: React.FC = () => {
                 value={jobForm.name}
                 onChange={(e) => setJobForm({ ...jobForm, name: e.target.value })}
                 placeholder="e.g., Metering and Stop Button"
+                enablePlaceholderFill={true}
               />
 
               <Input
@@ -279,6 +280,7 @@ const Admin: React.FC = () => {
                 value={jobForm.client}
                 onChange={(e) => setJobForm({ ...jobForm, client: e.target.value })}
                 placeholder="Power Up"
+                enablePlaceholderFill={true}
               />
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -297,6 +299,7 @@ const Admin: React.FC = () => {
                   value={jobForm.location}
                   onChange={(e) => setJobForm({ ...jobForm, location: e.target.value })}
                   placeholder="Zander Way, Bedford, MK47 34D"
+                  enablePlaceholderFill={true}
                 />
               </div>
 
@@ -307,6 +310,7 @@ const Admin: React.FC = () => {
                 onChange={(e) => setJobForm({ ...jobForm, tags: e.target.value })}
                 placeholder="Re-test, Metering, Stop Button, etc.e"
                 hint={MESSAGES.TAGS_HINT}
+                enablePlaceholderFill={true}
               />
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -316,6 +320,7 @@ const Admin: React.FC = () => {
                   value={jobForm.site_contact}
                   onChange={(e) => setJobForm({ ...jobForm, site_contact: e.target.value })}
                   placeholder="John Smith"
+                  enablePlaceholderFill={true}
                 />
 
                 <Input
@@ -324,6 +329,7 @@ const Admin: React.FC = () => {
                   value={jobForm.site_phone_number}
                   onChange={(e) => setJobForm({ ...jobForm, site_phone_number: e.target.value })}
                   placeholder="+44 1234 567890"
+                  enablePlaceholderFill={true}
                 />
               </div>
 
@@ -334,6 +340,7 @@ const Admin: React.FC = () => {
                 value={jobForm.details}
                 onChange={(e) => setJobForm({ ...jobForm, details: e.target.value })}
                 placeholder="Enter job details..."
+                enablePlaceholderFill={true}
               />
 
               <div>
@@ -344,18 +351,13 @@ const Admin: React.FC = () => {
                   <div className="text-sm text-gray-500 py-2">
                     {MESSAGES.LOADING_USERS}
                   </div>
-                ) : users.filter((user) => user.id !== currentUser?.id).length ===
-                  0 ? (
+                ) : users.length === 0 ? (
                   <div className="text-sm text-gray-500 py-2">
-                    {users.length === 0
-                      ? MESSAGES.NO_USERS_MIGRATION
-                      : MESSAGES.NO_USERS_ONLY_YOU}
+                    {MESSAGES.NO_USERS_MIGRATION}
                   </div>
                 ) : (
                   <div className="space-y-2 max-h-48 overflow-y-auto border border-gray-300 rounded-lg p-3 bg-white">
-                    {users
-                      .filter(user => user.id !== currentUser?.id) // Exclude current user
-                      .map((user) => (
+                    {users.map((user) => (
                         <label
                           key={user.id}
                           className="flex items-center gap-2 p-2 hover:bg-gray-50 rounded cursor-pointer"
@@ -380,6 +382,9 @@ const Admin: React.FC = () => {
                           />
                           <span className="text-sm text-gray-700">
                             {user.displayName || user.email}
+                            {user.id === currentUser?.id && (
+                              <span className="text-xs text-primary-600 ml-1">(You)</span>
+                            )}
                           </span>
                         </label>
                       ))}
@@ -416,6 +421,7 @@ const Admin: React.FC = () => {
                     setEquipmentForm({ ...equipmentForm, name: e.target.value })
                   }
                   placeholder="e.g., Multimeter Pro 5000"
+                  enablePlaceholderFill={true}
                 />
 
                 <Input
@@ -430,6 +436,7 @@ const Admin: React.FC = () => {
                     })
                   }
                   placeholder="e.g., TE-2024-001"
+                  enablePlaceholderFill={true}
                 />
 
                 <Input
@@ -625,38 +632,31 @@ const Admin: React.FC = () => {
                   </p>
                 </div>
 
-                <div>
-                  <label htmlFor="logo-url" className="block text-sm font-medium text-gray-700 mb-2">
-                    Logo URL
-                  </label>
-                  <input
-                    id="logo-url"
-                    type="url"
-                    value={brandingForm.logoUrl}
-                    onChange={(e) => setBrandingForm({ ...brandingForm, logoUrl: e.target.value })}
-                    placeholder="https://example.com/logo.png"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                  />
-                  <p className="mt-1 text-xs text-gray-500">
-                    Enter a URL to your logo image. This will be displayed in the app header.
-                  </p>
-                  {brandingForm.logoUrl && (
-                    <div className="mt-4">
-                      <p className="text-sm font-medium text-gray-700 mb-2">Preview:</p>
-                      <div className="border border-gray-300 rounded-lg p-4 bg-gray-50 flex items-center justify-center">
-                        <img
-                          src={brandingForm.logoUrl}
-                          alt="Logo preview"
-                          className="max-h-16 max-w-full object-contain"
-                          onError={(e) => {
-                            const target = e.target as HTMLImageElement
-                            target.style.display = 'none'
-                          }}
-                        />
-                      </div>
+                <Input
+                  label="Logo URL"
+                  type="url"
+                  value={brandingForm.logoUrl}
+                  onChange={(e) => setBrandingForm({ ...brandingForm, logoUrl: e.target.value })}
+                  placeholder="https://example.com/logo.png"
+                  hint="Enter a URL to your logo image. This will be displayed in the app header."
+                  enablePlaceholderFill={true}
+                />
+                {brandingForm.logoUrl && (
+                  <div className="mt-4">
+                    <p className="text-sm font-medium text-gray-700 mb-2">Preview:</p>
+                    <div className="border border-gray-300 rounded-lg p-4 bg-gray-50 flex items-center justify-center">
+                      <img
+                        src={brandingForm.logoUrl}
+                        alt="Logo preview"
+                        className="max-h-16 max-w-full object-contain"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement
+                          target.style.display = 'none'
+                        }}
+                      />
                     </div>
-                  )}
-                </div>
+                  </div>
+                )}
 
                 <div className="pt-4 border-t border-gray-200">
                   <Button type="submit" fullWidth={false}>

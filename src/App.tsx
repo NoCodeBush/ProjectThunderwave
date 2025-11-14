@@ -10,6 +10,7 @@ import Admin from './components/Admin'
 import JobDetails from './components/JobDetails'
 import AssetManagement from './components/AssetManagement'
 import JobTests from './components/JobTests'
+import ImageScan from './components/ImageScan'
 
 const PrivateRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { currentUser } = useAuth()
@@ -82,6 +83,14 @@ function AppRoutes() {
         element={
           <PrivateRoute>
             <JobTests />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path={ROUTES.IMAGE_SCAN}
+        element={
+          <PrivateRoute>
+            <ImageScan />
           </PrivateRoute>
         }
       />
