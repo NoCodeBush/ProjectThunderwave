@@ -35,6 +35,154 @@ const getExpectedValuePlaceholder = (input: TestInput): string | undefined => {
   return undefined
 }
 
+type ExpectationStatus = {
+  state: 'pass' | 'fail'
+  message: string
+}
+
+const formatValueWithUnit = (value: number, unit?: string | null) => {
+  return `${value}${unit ? ` ${unit}` : ''}`
+}
+
+const parseNumericValue = (value: InputValueState): number | null => {
+  if (value === null || value === undefined) {
+    return null
+  }
+
+  if (typeof value === 'number') {
+    return Number.isNaN(value) ? null : value
+  }
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (!trimmed) {
+      return null
+    }
+    const parsed = Number(trimmed)
+    return Number.isNaN(parsed) ? null : parsed
+  }
+
+  return null
+}
+
+const getExpectationStatus = (input: TestInput, rawValue: InputValueState): ExpectationStatus | null => {
+  if (input.input_type === 'number') {
+    const numericValue = parseNumericValue(rawValue)
+    if (numericValue === null) {
+      return null
+    }
+
+    const describeRange = () => {
+      const hasMin = typeof input.expected_min === 'number'
+      const hasMax = typeof input.expected_max === 'number'
+      if (hasMin && hasMax) {
+        return `Expected between ${formatValueWithUnit(input.expected_min!, input.unit)} and ${formatValueWithUnit(
+          input.expected_max!,
+          input.unit
+        )}`
+      }
+      if (hasMin) {
+        return `Expected ≥ ${formatValueWithUnit(input.expected_min!, input.unit)}`
+      }
+      if (hasMax) {
+        return `Expected ≤ ${formatValueWithUnit(input.expected_max!, input.unit)}`
+      }
+      return null
+    }
+
+    switch (input.expected_type) {
+      case 'range': {
+        const hasMin = typeof input.expected_min === 'number'
+        const hasMax = typeof input.expected_max === 'number'
+        if (!hasMin && !hasMax) {
+          return null
+        }
+        const meetsMin = !hasMin || numericValue >= (input.expected_min as number)
+        const meetsMax = !hasMax || numericValue <= (input.expected_max as number)
+        if (meetsMin && meetsMax) {
+          return { state: 'pass', message: 'Within expected range' }
+        }
+        return { state: 'fail', message: describeRange() ?? 'Value is outside the expected range' }
+      }
+      case 'minimum': {
+        if (typeof input.expected_min !== 'number') {
+          return null
+        }
+        if (numericValue >= input.expected_min) {
+          return { state: 'pass', message: 'Meets minimum requirement' }
+        }
+        return {
+          state: 'fail',
+          message: `Expected ≥ ${formatValueWithUnit(input.expected_min, input.unit)}`
+        }
+      }
+      case 'maximum': {
+        if (typeof input.expected_max !== 'number') {
+          return null
+        }
+        if (numericValue <= input.expected_max) {
+          return { state: 'pass', message: 'Meets maximum requirement' }
+        }
+        return {
+          state: 'fail',
+          message: `Expected ≤ ${formatValueWithUnit(input.expected_max, input.unit)}`
+        }
+      }
+      case 'exact': {
+        if (typeof input.expected_value !== 'number') {
+          return null
+        }
+        if (numericValue === input.expected_value) {
+          return { state: 'pass', message: 'Matches expected value' }
+        }
+        return {
+          state: 'fail',
+          message: `Expected ${formatValueWithUnit(input.expected_value, input.unit)}`
+        }
+      }
+      default:
+        return null
+    }
+  }
+
+  if (
+    input.input_type === 'boolean' &&
+    input.expected_type === 'exact' &&
+    typeof input.expected_value === 'number' &&
+    typeof rawValue === 'boolean'
+  ) {
+    const expectedBool = Boolean(input.expected_value)
+    if (rawValue === expectedBool) {
+      return { state: 'pass', message: `Matches expected ${expectedBool ? 'Yes' : 'No'}` }
+    }
+    return { state: 'fail', message: `Expected ${expectedBool ? 'Yes' : 'No'}` }
+  }
+
+  return null
+}
+
+const ValidationIndicator: React.FC<{ status: ExpectationStatus }> = ({ status }) => {
+  const isPass = status.state === 'pass'
+  return (
+    <div
+      className={`mt-2 flex items-center text-sm ${isPass ? 'text-green-600' : 'text-red-600'}`}
+      role="status"
+      aria-live="polite"
+    >
+      {isPass ? (
+        <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+          <path d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 10-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" />
+        </svg>
+      ) : (
+        <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+          <path d="M10 18a8 8 0 100-16 8 8 0 000 16zm-1.414-9.414L7.293 7.293a1 1 0 011.414-1.414L10 8.172l1.293-1.293a1 1 0 111.414 1.414L11.414 9.586l1.293 1.293a1 1 0 11-1.414 1.414L10 11l-1.293 1.293a1 1 0 01-1.414-1.414l1.293-1.293z" />
+        </svg>
+      )}
+      <span className="ml-2">{status.message}</span>
+    </div>
+  )
+}
+
 const TestResultDrawer: React.FC<TestResultDrawerProps> = ({ isOpen, test, onClose, onSave }) => {
   const inputs = useMemo(() => test.test_inputs || [], [test.test_inputs])
   const latestResult: TestResult | undefined = useMemo(() => test.test_results?.[0], [test.test_results])
@@ -213,8 +361,10 @@ const TestResultDrawer: React.FC<TestResultDrawerProps> = ({ isOpen, test, onClo
             </div>
           ) : (
             <div className="space-y-5">
-              {inputs.map((input) => (
-                <div key={input.id} className="rounded-xl border border-gray-200 p-4">
+              {inputs.map((input) => {
+                const expectationStatus = getExpectationStatus(input, values[input.id])
+                return (
+                  <div key={input.id} className="rounded-xl border border-gray-200 p-4">
                   <div className="flex items-start justify-between gap-4">
                     <div>
                       <p className="text-sm font-semibold text-gray-900">{input.label}</p>
@@ -232,17 +382,20 @@ const TestResultDrawer: React.FC<TestResultDrawerProps> = ({ isOpen, test, onClo
 
                   <div className="mt-4">
                     {input.input_type === 'number' && (
-                      <Input
-                        label="Measurement"
-                        id={`measurement-${input.id}`}
-                        type="number"
-                        value={(values[input.id] as string) ?? ''}
-                        onChange={(event) => updateValue(input.id, event.target.value)}
-                        required
-                        error={errors[input.id]}
-                        placeholder={getExpectedValuePlaceholder(input)}
-                        enablePlaceholderFill={Boolean(getExpectedValuePlaceholder(input))}
-                      />
+                      <>
+                        <Input
+                          label="Measurement"
+                          id={`measurement-${input.id}`}
+                          type="number"
+                          value={(values[input.id] as string) ?? ''}
+                          onChange={(event) => updateValue(input.id, event.target.value)}
+                          required
+                          error={errors[input.id]}
+                          placeholder={getExpectedValuePlaceholder(input)}
+                          enablePlaceholderFill={Boolean(getExpectedValuePlaceholder(input))}
+                        />
+                        {expectationStatus && <ValidationIndicator status={expectationStatus} />}
+                      </>
                     )}
 
                     {input.input_type === 'text' && (
@@ -283,11 +436,13 @@ const TestResultDrawer: React.FC<TestResultDrawerProps> = ({ isOpen, test, onClo
                         {errors[input.id] && (
                           <p className="mt-2 text-xs text-red-600">{errors[input.id]}</p>
                         )}
+                        {expectationStatus && <ValidationIndicator status={expectationStatus} />}
                       </div>
                     )}
                   </div>
                 </div>
-              ))}
+                )
+              })}
             </div>
           )}
 
