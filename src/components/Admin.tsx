@@ -15,6 +15,7 @@ import { parseTags } from '../utils/strings'
 import Banner from './Banner'
 import Input from './ui/Input'
 import TextArea from './ui/TextArea'
+import Select from './ui/Select'
 import Button from './ui/Button'
 import NotificationTray from './ui/NotificationTray'
 import TestBuilderDrawer from './TestBuilderDrawer'
@@ -59,6 +60,7 @@ const Admin: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'jobs' | 'equipment' | 'branding' | 'users' | 'tests'>('jobs')
   const [banner, setBanner] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
   const [isTestDrawerOpen, setIsTestDrawerOpen] = useState(false)
+  const [isMobileNavOpen, setIsMobileNavOpen] = useState(false)
   
   // Branding form state
   const [brandingForm, setBrandingForm] = useState({
@@ -200,9 +202,41 @@ const Admin: React.FC = () => {
 
       {/* Main Content */}
       <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-8">
-        {/* Tabs */}
+        {/* Navigation */}
         <div className="mb-6">
-          <div className="flex gap-2 border-b border-gray-200">
+          {/* Mobile Premium Navigation */}
+          <div className="md:hidden">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-primary-500 rounded-xl flex items-center justify-center shadow-lg">
+                  <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                  </svg>
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900">
+                    {activeTab === 'jobs' && 'Add Job'}
+                    {activeTab === 'equipment' && 'Test Equipment'}
+                    {activeTab === 'tests' && 'Tests'}
+                    {activeTab === 'branding' && 'Branding'}
+                    {activeTab === 'users' && 'Users'}
+                  </h2>
+                  <p className="text-sm text-gray-500">Administration Panel</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsMobileNavOpen(true)}
+                className="w-10 h-10 bg-white border border-gray-200 rounded-xl flex items-center justify-center shadow-sm hover:bg-gray-50 transition-colors"
+              >
+                <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4" />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          {/* Desktop Horizontal Tabs */}
+          <div className="hidden md:flex gap-2 border-b border-gray-200">
             <button
               onClick={() => setActiveTab('jobs')}
               className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
@@ -223,16 +257,16 @@ const Admin: React.FC = () => {
             >
               Test Equipment
             </button>
-          <button
-            onClick={() => setActiveTab('tests')}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === 'tests'
-                ? 'border-primary-500 text-primary-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            Tests
-          </button>
+            <button
+              onClick={() => setActiveTab('tests')}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === 'tests'
+                  ? 'border-primary-500 text-primary-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              Tests
+            </button>
             <button
               onClick={() => setActiveTab('branding')}
               className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
@@ -257,6 +291,168 @@ const Admin: React.FC = () => {
             )}
           </div>
         </div>
+
+        {/* Mobile Navigation Bottom Sheet */}
+        {isMobileNavOpen && (
+          <>
+            {/* Backdrop */}
+            <div
+              className="fixed inset-0 bg-black bg-opacity-50 z-40 md:hidden"
+              onClick={() => setIsMobileNavOpen(false)}
+            />
+
+            {/* Bottom Sheet */}
+            <div className="fixed bottom-0 left-0 right-0 bg-white rounded-t-3xl shadow-2xl z-50 md:hidden transform transition-transform duration-300 ease-out">
+              <div className="p-6">
+                {/* Handle */}
+                <div className="w-12 h-1.5 bg-gray-300 rounded-full mx-auto mb-6"></div>
+
+                {/* Title */}
+                <h3 className="text-lg font-semibold text-gray-900 mb-6 text-center">Administration</h3>
+
+                {/* Navigation Options */}
+                <div className="space-y-2">
+                  <button
+                    onClick={() => {
+                      setActiveTab('jobs')
+                      setIsMobileNavOpen(false)
+                    }}
+                    className={`w-full flex items-center gap-4 p-4 rounded-xl transition-all ${
+                      activeTab === 'jobs'
+                        ? 'bg-primary-50 border-2 border-primary-200'
+                        : 'hover:bg-gray-50'
+                    }`}
+                  >
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                      activeTab === 'jobs' ? 'bg-primary-500' : 'bg-gray-100'
+                    }`}>
+                      <svg className={`w-5 h-5 ${activeTab === 'jobs' ? 'text-white' : 'text-gray-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                      </svg>
+                    </div>
+                    <div className="text-left">
+                      <p className={`font-medium ${activeTab === 'jobs' ? 'text-primary-900' : 'text-gray-900'}`}>Add Job</p>
+                      <p className="text-sm text-gray-500">Create new job assignments</p>
+                    </div>
+                    {activeTab === 'jobs' && (
+                      <div className="ml-auto w-2 h-2 bg-primary-500 rounded-full"></div>
+                    )}
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setActiveTab('equipment')
+                      setIsMobileNavOpen(false)
+                    }}
+                    className={`w-full flex items-center gap-4 p-4 rounded-xl transition-all ${
+                      activeTab === 'equipment'
+                        ? 'bg-primary-50 border-2 border-primary-200'
+                        : 'hover:bg-gray-50'
+                    }`}
+                  >
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                      activeTab === 'equipment' ? 'bg-primary-500' : 'bg-gray-100'
+                    }`}>
+                      <svg className={`w-5 h-5 ${activeTab === 'equipment' ? 'text-white' : 'text-gray-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                    <div className="text-left">
+                      <p className={`font-medium ${activeTab === 'equipment' ? 'text-primary-900' : 'text-gray-900'}`}>Test Equipment</p>
+                      <p className="text-sm text-gray-500">Manage testing tools</p>
+                    </div>
+                    {activeTab === 'equipment' && (
+                      <div className="ml-auto w-2 h-2 bg-primary-500 rounded-full"></div>
+                    )}
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setActiveTab('tests')
+                      setIsMobileNavOpen(false)
+                    }}
+                    className={`w-full flex items-center gap-4 p-4 rounded-xl transition-all ${
+                      activeTab === 'tests'
+                        ? 'bg-primary-50 border-2 border-primary-200'
+                        : 'hover:bg-gray-50'
+                    }`}
+                  >
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                      activeTab === 'tests' ? 'bg-primary-500' : 'bg-gray-100'
+                    }`}>
+                      <svg className={`w-5 h-5 ${activeTab === 'tests' ? 'text-white' : 'text-gray-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                      </svg>
+                    </div>
+                    <div className="text-left">
+                      <p className={`font-medium ${activeTab === 'tests' ? 'text-primary-900' : 'text-gray-900'}`}>Tests</p>
+                      <p className="text-sm text-gray-500">Create and manage tests</p>
+                    </div>
+                    {activeTab === 'tests' && (
+                      <div className="ml-auto w-2 h-2 bg-primary-500 rounded-full"></div>
+                    )}
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setActiveTab('branding')
+                      setIsMobileNavOpen(false)
+                    }}
+                    className={`w-full flex items-center gap-4 p-4 rounded-xl transition-all ${
+                      activeTab === 'branding'
+                        ? 'bg-primary-50 border-2 border-primary-200'
+                        : 'hover:bg-gray-50'
+                    }`}
+                  >
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                      activeTab === 'branding' ? 'bg-primary-500' : 'bg-gray-100'
+                    }`}>
+                      <svg className={`w-5 h-5 ${activeTab === 'branding' ? 'text-white' : 'text-gray-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zM21 5a2 2 0 00-2-2h-4a2 2 0 00-2 2v12a4 4 0 004 4h4a2 2 0 002-2V5z" />
+                      </svg>
+                    </div>
+                    <div className="text-left">
+                      <p className={`font-medium ${activeTab === 'branding' ? 'text-primary-900' : 'text-gray-900'}`}>Branding</p>
+                      <p className="text-sm text-gray-500">Customize appearance</p>
+                    </div>
+                    {activeTab === 'branding' && (
+                      <div className="ml-auto w-2 h-2 bg-primary-500 rounded-full"></div>
+                    )}
+                  </button>
+
+                  {isAdministrator && (
+                    <button
+                      onClick={() => {
+                        setActiveTab('users')
+                        setIsMobileNavOpen(false)
+                      }}
+                      className={`w-full flex items-center gap-4 p-4 rounded-xl transition-all ${
+                        activeTab === 'users'
+                          ? 'bg-primary-50 border-2 border-primary-200'
+                          : 'hover:bg-gray-50'
+                      }`}
+                    >
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                        activeTab === 'users' ? 'bg-primary-500' : 'bg-gray-100'
+                      }`}>
+                        <svg className={`w-5 h-5 ${activeTab === 'users' ? 'text-white' : 'text-gray-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
+                        </svg>
+                      </div>
+                      <div className="text-left">
+                        <p className={`font-medium ${activeTab === 'users' ? 'text-primary-900' : 'text-gray-900'}`}>Users</p>
+                        <p className="text-sm text-gray-500">Manage user roles</p>
+                      </div>
+                      {activeTab === 'users' && (
+                        <div className="ml-auto w-2 h-2 bg-primary-500 rounded-full"></div>
+                      )}
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </>
+        )}
 
         {/* Add Job Form */}
         {activeTab === 'jobs' && (
@@ -710,27 +906,29 @@ const Admin: React.FC = () => {
                         </div>
                       </div>
                       <div className="flex items-center gap-3">
-                        <select
-                          value={user.role || 'engineer'}
-                          onChange={async (e) => {
-                            try {
-                              await updateUserRole(user.id, e.target.value as 'administrator' | 'engineer')
-                              setBanner({ message: 'User role updated successfully!', type: 'success' })
-                              refreshUsers()
-                            } catch (error) {
-                              const errorMessage = error instanceof Error ? error.message : 'Failed to update user role'
-                              setBanner({ 
-                                message: errorMessage, 
-                                type: 'error' 
-                              })
-                            }
-                          }}
-                          disabled={user.id === currentUser?.id || userManagementLoading}
-                          className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          <option value="engineer">Engineer</option>
-                          <option value="administrator">Administrator</option>
-                        </select>
+                        <div className="w-32">
+                          <Select
+                            value={user.role || 'engineer'}
+                            options={[
+                              { value: 'engineer', label: 'Engineer' },
+                              { value: 'administrator', label: 'Administrator' }
+                            ]}
+                            onChange={async (value) => {
+                              try {
+                                await updateUserRole(user.id, value as 'administrator' | 'engineer')
+                                setBanner({ message: 'User role updated successfully!', type: 'success' })
+                                refreshUsers()
+                              } catch (error) {
+                                const errorMessage = error instanceof Error ? error.message : 'Failed to update user role'
+                                setBanner({
+                                  message: errorMessage,
+                                  type: 'error'
+                                })
+                              }
+                            }}
+                            disabled={user.id === currentUser?.id || userManagementLoading}
+                          />
+                        </div>
                         {user.id === currentUser?.id && (
                           <span className="text-xs text-gray-500 px-2 py-1 bg-gray-100 rounded">
                             You

@@ -5,6 +5,7 @@ import { CreateTestPayload, TestExpectedType, TestInputDraft, TestInputType } fr
 import { useAssets } from '../hooks/useAssets'
 import Input from './ui/Input'
 import TextArea from './ui/TextArea'
+import Select from './ui/Select'
 import Button from './ui/Button'
 
 interface TestBuilderDrawerProps {
@@ -233,57 +234,56 @@ const TestBuilderDrawer: React.FC<TestBuilderDrawerProps> = ({
             />
 
             <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">
-                Job
-              </label>
               {lockJob && defaultJobId ? (
-                <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">
-                  {jobOptions.find(job => job.value === defaultJobId)?.label || 'Selected job'}
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700">
+                    Job
+                  </label>
+                  <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">
+                    {jobOptions.find(job => job.value === defaultJobId)?.label || 'Selected job'}
+                  </div>
                 </div>
               ) : (
-                <select
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                <Select
+                  label="Job"
+                  placeholder="Select a job"
                   value={selectedJobId}
-                  onChange={(e) => setSelectedJobId(e.target.value)}
-                >
-                  <option value="">Select a job</option>
-                  {jobOptions.map(job => (
-                    <option key={job.value} value={job.value}>
-                      {job.label}
-                    </option>
-                  ))}
-                </select>
+                  options={[
+                    { value: '', label: 'Select a job' },
+                    ...jobOptions
+                  ]}
+                  onChange={setSelectedJobId}
+                  required
+                />
               )}
             </div>
           </div>
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">
-                Asset (optional)
-              </label>
               {lockAsset && defaultAssetId ? (
-                <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">
-                  {defaultAssetLabel || 'Selected asset'}
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700">
+                    Asset (optional)
+                  </label>
+                  <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">
+                    {defaultAssetLabel || 'Selected asset'}
+                  </div>
                 </div>
               ) : (
-                <select
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                <Select
+                  label="Asset (optional)"
+                  placeholder="No asset selected"
                   value={selectedAssetId}
-                  onChange={(e) => setSelectedAssetId(e.target.value)}
+                  options={[
+                    { value: '', label: 'No asset selected' },
+                    ...assetOptions
+                  ]}
+                  onChange={setSelectedAssetId}
                   disabled={!effectiveJobId || assetsLoading}
-                >
-                  <option value="">No asset selected</option>
-                  {assetOptions.map(asset => (
-                    <option key={asset.value} value={asset.value}>
-                      {asset.label}
-                    </option>
-                  ))}
-                </select>
+                  hint="Tests can be created without attaching an asset. Link them later from the asset screen."
+                />
               )}
-              <p className="mt-1 text-xs text-gray-500">
-                Tests can be created without attaching an asset. Link them later from the asset screen.
-              </p>
             </div>
 
             <Input
@@ -343,22 +343,12 @@ const TestBuilderDrawer: React.FC<TestBuilderDrawerProps> = ({
                       required
                     />
 
-                    <div>
-                      <label className="mb-1 block text-sm font-medium text-gray-700">
-                        Input Type
-                      </label>
-                      <select
-                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                        value={input.inputType}
-                        onChange={(e) => updateInput(index, { inputType: e.target.value as TestInputType })}
-                      >
-                        {inputTypeOptions.map(option => (
-                          <option key={option.value} value={option.value}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+                    <Select
+                      label="Input Type"
+                      value={input.inputType}
+                      options={inputTypeOptions}
+                      onChange={(value) => updateInput(index, { inputType: value as TestInputType })}
+                    />
                   </div>
 
                   <div className="grid gap-4 md:grid-cols-2">
@@ -369,25 +359,12 @@ const TestBuilderDrawer: React.FC<TestBuilderDrawerProps> = ({
                       onChange={(e) => updateInput(index, { unit: e.target.value })}
                     />
 
-                    <div>
-                      <label className="mb-1 block text-sm font-medium text-gray-700">
-                        Expected Type
-                      </label>
-                      <select
-                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                        value={input.expectedType}
-                        onChange={(e) => updateInput(index, { expectedType: e.target.value as TestExpectedType })}
-                      >
-                        {expectedTypeOptions.map(option => (
-                          <option key={option.value} value={option.value}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </select>
-                      <p className="mt-1 text-xs text-gray-500">
-                        {expectedTypeOptions.find(opt => opt.value === input.expectedType)?.description}
-                      </p>
-                    </div>
+                    <Select
+                      label="Expected Type"
+                      value={input.expectedType}
+                      options={expectedTypeOptions}
+                      onChange={(value) => updateInput(index, { expectedType: value as TestExpectedType })}
+                    />
                   </div>
 
                   <div className="grid gap-4 md:grid-cols-3">
