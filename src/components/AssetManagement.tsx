@@ -338,11 +338,8 @@ const AssetManagement: React.FC = () => {
           setIsTestDrawerOpen(false)
           setAssetForTest(null)
         }}
-        jobs={job ? [job] : []}
-        defaultJobId={job?.id}
-        defaultAssetId={assetForTest?.id}
-        defaultAssetLabel={assetForTest ? getAssetDisplayName(assetForTest) : undefined}
-        lockJob
+        defaultAssetId={assetForTest?.asset_type}
+        defaultAssetLabel={assetForTest ? ASSET_TYPE_CONFIGS[assetForTest.asset_type]?.label : undefined}
         lockAsset={Boolean(assetForTest)}
         onCreate={async (payload) => {
           try {
@@ -559,12 +556,5 @@ const AssetCard: React.FC<{
   )
 }
 
-const getAssetDisplayName = (asset: Asset) => {
-  if (asset.make && asset.model) return `${asset.make} ${asset.model}`
-  if (asset.make) return asset.make
-  if (asset.model) return asset.model
-  const config = ASSET_TYPE_CONFIGS[asset.asset_type]
-  return config?.label || 'Asset'
-}
 
 export default AssetManagement

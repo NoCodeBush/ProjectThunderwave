@@ -67,15 +67,15 @@ export interface CreateTestPayload {
   name: string
   description?: string
   instructions?: string
-  jobId: string
-  assetId?: string | null
+  jobId?: string | null
+  assetType?: string | null
   inputs: TestInputDraft[]
 }
 
 export interface SaveTestResultPayload {
   testId: string
-  jobId: string
-  assetId?: string | null
+  jobId?: string | null
+  assetIds: string[]
   responses: TestResultResponse[]
   status?: TestResultStatus
   resultId?: string

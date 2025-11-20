@@ -1,0 +1,72 @@
+# Thunderbolt Project Cursor Rules
+
+## Input Component Rules
+
+### Placeholder Fill Enforcement
+When creating Input or TextArea components with placeholders, you MUST enable the placeholder fill feature for better UX:
+
+**✅ CORRECT:**
+```tsx
+<Input
+  label="Job Name"
+  placeholder="e.g., Metering and Stop Button"
+  enablePlaceholderFill={true}
+/>
+```
+
+**❌ INCORRECT:**
+```tsx
+<Input
+  label="Job Name"
+  placeholder="e.g., Metering and Stop Button"
+/>
+```
+
+**Why this matters:**
+- Placeholder fill buttons (⚡ lightning bolt icon) provide one-click value insertion
+- Improves user experience by reducing typing for common values
+- Ensures consistent UX across all forms in the app
+- Follows established patterns used throughout the codebase
+
+### Enforcement Rules:
+1. **Any `<Input>` or `<TextArea>` with a `placeholder` prop MUST have `enablePlaceholderFill={true}`**
+2. **Exception:** Components without placeholders don't need this prop
+3. **Exception:** When placeholder fill would be inappropriate (passwords, search fields, etc.)
+
+### Common Patterns to Check:
+- ✅ Form inputs in Admin panel (job creation, equipment, etc.)
+- ✅ Test creation forms (test names, input labels, units)
+- ✅ Asset management forms (properties, notes)
+- ✅ Any user-facing input with helpful placeholder examples
+
+### How to Use:
+1. Add a descriptive placeholder that shows the expected format
+2. Always include `enablePlaceholderFill={true}`
+3. The lightning bolt (⚡) will appear automatically when placeholder exists
+
+### Cursor Auto-fix:
+When you create an Input/TextArea with `placeholder="..."` but no `enablePlaceholderFill`, Cursor will suggest adding `enablePlaceholderFill={true}`.
+
+### Examples from Codebase:
+```tsx
+// ✅ Good - Test name input with placeholder fill
+<Input
+  label="Test Name"
+  placeholder="e.g., VT winding resistance test"
+  enablePlaceholderFill={true}
+  required
+/>
+
+// ✅ Good - Unit input with placeholder fill
+<Input
+  label="Unit"
+  placeholder="e.g., V, Ω, A"
+  enablePlaceholderFill={true}
+/>
+
+// ❌ Bad - Missing enablePlaceholderFill
+<Input
+  label="Test Name"
+  placeholder="e.g., VT winding resistance test"
+/>
+```

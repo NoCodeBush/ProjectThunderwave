@@ -3,6 +3,7 @@ import { Job } from '../types/job'
 import { Asset, ASSET_TYPE_CONFIGS } from '../types/asset'
 import { CreateTestPayload, TestExpectedType, TestInputDraft, TestInputType } from '../types/test'
 import { useAssets } from '../hooks/useAssets'
+import { useJobs } from '../hooks/useJobs'
 import Input from './ui/Input'
 import TextArea from './ui/TextArea'
 import Select from './ui/Select'
@@ -11,7 +12,6 @@ import Button from './ui/Button'
 interface TestBuilderDrawerProps {
   isOpen: boolean
   onClose: () => void
-  jobs: Job[]
   defaultJobId?: string
   defaultAssetId?: string
   defaultAssetLabel?: string
@@ -47,7 +47,6 @@ const inputTypeOptions: { label: string; value: TestInputType }[] = [
 const TestBuilderDrawer: React.FC<TestBuilderDrawerProps> = ({
   isOpen,
   onClose,
-  jobs,
   defaultJobId,
   defaultAssetId,
   defaultAssetLabel,
@@ -59,15 +58,12 @@ const TestBuilderDrawer: React.FC<TestBuilderDrawerProps> = ({
   const [description, setDescription] = useState('')
   const [instructions, setInstructions] = useState('')
   const [selectedJobId, setSelectedJobId] = useState<string>(defaultJobId || '')
-  const [selectedAssetId, setSelectedAssetId] = useState<string>(defaultAssetId || '')
+  const [selectedAssetType, setSelectedAssetType] = useState<string>(defaultAssetId || '')
   const [inputs, setInputs] = useState<TestInputDraft[]>([createEmptyInput()])
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const effectiveJobId = lockJob ? (defaultJobId || '') : selectedJobId
-  const effectiveAssetId = lockAsset ? (defaultAssetId || '') : selectedAssetId
-
-  const { assets: availableAssets, loading: assetsLoading } = useAssets(isOpen ? effectiveJobId : undefined)
+  const effectiveAssetType = lockAsset ? (defaultAssetId || '') : selectedAssetType
 
   useEffect(() => {
     if (isOpen) {
@@ -76,10 +72,12 @@ const TestBuilderDrawer: React.FC<TestBuilderDrawerProps> = ({
       setInstructions('')
       setInputs([createEmptyInput()])
       setSelectedJobId(defaultJobId || '')
-      setSelectedAssetId(defaultAssetId || '')
+      setSelectedAssetType(defaultAssetId || '')
       setStatusMessage(null)
     }
   }, [isOpen, defaultJobId, defaultAssetId])
+
+  const { jobs } = useJobs()
 
   const jobOptions = useMemo(() => {
     return jobs.map((job) => ({
@@ -88,13 +86,12 @@ const TestBuilderDrawer: React.FC<TestBuilderDrawerProps> = ({
     }))
   }, [jobs])
 
-  const assetOptions = useMemo(() => {
-    if (!availableAssets || availableAssets.length === 0) return []
-    return availableAssets.map(asset => ({
-      value: asset.id,
-      label: getAssetLabel(asset)
+  const assetTypeOptions = useMemo(() => {
+    return Object.entries(ASSET_TYPE_CONFIGS).map(([key, config]) => ({
+      value: key,
+      label: config.label
     }))
-  }, [availableAssets])
+  }, [])
 
   const validateInputs = () => {
     if (!testName.trim()) {
@@ -102,8 +99,8 @@ const TestBuilderDrawer: React.FC<TestBuilderDrawerProps> = ({
       return false
     }
 
-    if (!effectiveJobId) {
-      setStatusMessage({ type: 'error', message: 'Select a job before creating a test.' })
+    if (lockJob && !selectedJobId) {
+      setStatusMessage({ type: 'error', message: 'A job must be selected for this test.' })
       return false
     }
 
@@ -153,8 +150,8 @@ const TestBuilderDrawer: React.FC<TestBuilderDrawerProps> = ({
         name: testName.trim(),
         description: description.trim() || undefined,
         instructions: instructions.trim() || undefined,
-        jobId: effectiveJobId,
-        assetId: effectiveAssetId || undefined,
+        jobId: selectedJobId || undefined,
+        assetType: effectiveAssetType || undefined,
         inputs
       })
       setStatusMessage({ type: 'success', message: 'Test created successfully.' })
@@ -186,7 +183,7 @@ const TestBuilderDrawer: React.FC<TestBuilderDrawerProps> = ({
     setInputs(prev => prev.filter((_, idx) => idx !== index))
   }
 
-  const canSubmit = Boolean(testName.trim() && effectiveJobId && inputs.length > 0)
+  const canSubmit = Boolean(testName.trim() && inputs.length > 0)
 
   if (!isOpen) {
     return null
@@ -224,75 +221,53 @@ const TestBuilderDrawer: React.FC<TestBuilderDrawerProps> = ({
             </div>
           )}
 
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <Input
-              label="Test Name"
-              value={testName}
-              onChange={(e) => setTestName(e.target.value)}
-              placeholder="e.g., VT winding resistance test"
-              required
-            />
+          <Input
+            label="Test Name"
+            value={testName}
+            onChange={(e) => setTestName(e.target.value)}
+            placeholder="e.g., VT winding resistance test"
+            enablePlaceholderFill={true}
+            required
+          />
 
+          {!lockJob && (
             <div>
-              {lockJob && defaultJobId ? (
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-700">
-                    Job
-                  </label>
-                  <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">
-                    {jobOptions.find(job => job.value === defaultJobId)?.label || 'Selected job'}
-                  </div>
-                </div>
-              ) : (
-                <Select
-                  label="Job"
-                  placeholder="Select a job"
-                  value={selectedJobId}
-                  options={[
-                    { value: '', label: 'Select a job' },
-                    ...jobOptions
-                  ]}
-                  onChange={setSelectedJobId}
-                  required
-                />
-              )}
+              <label className="mb-1 block text-sm font-medium text-gray-700">
+                Job (optional)
+              </label>
+              <Select
+                value={selectedJobId}
+                options={[
+                  { value: '', label: 'No job selected' },
+                  ...jobOptions
+                ]}
+                onChange={setSelectedJobId}
+                placeholder="Select a job (optional)"
+              />
+              <p className="mt-1 text-xs text-gray-500">
+                Tests can be created without linking to a specific job. Link them later if needed.
+              </p>
             </div>
-          </div>
+          )}
 
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          {lockJob && defaultJobId && (
             <div>
-              {lockAsset && defaultAssetId ? (
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-700">
-                    Asset (optional)
-                  </label>
-                  <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">
-                    {defaultAssetLabel || 'Selected asset'}
-                  </div>
-                </div>
-              ) : (
-                <Select
-                  label="Asset (optional)"
-                  placeholder="No asset selected"
-                  value={selectedAssetId}
-                  options={[
-                    { value: '', label: 'No asset selected' },
-                    ...assetOptions
-                  ]}
-                  onChange={setSelectedAssetId}
-                  disabled={!effectiveJobId || assetsLoading}
-                  hint="Tests can be created without attaching an asset. Link them later from the asset screen."
-                />
-              )}
+              <label className="mb-1 block text-sm font-medium text-gray-700">
+                Job
+              </label>
+              <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">
+                {jobOptions.find(job => job.value === defaultJobId)?.label || 'Selected job'}
+              </div>
             </div>
+          )}
 
-            <Input
-              label="Reference / Notes"
-              placeholder="Optional short note"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-            />
-          </div>
+          <Input
+            label="Reference / Notes"
+            placeholder="Optional short note"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            enablePlaceholderFill={true}
+          />
 
           <TextArea
             label="Instructions"
@@ -300,6 +275,7 @@ const TestBuilderDrawer: React.FC<TestBuilderDrawerProps> = ({
             rows={3}
             value={instructions}
             onChange={(e) => setInstructions(e.target.value)}
+            enablePlaceholderFill={true}
           />
 
           <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
@@ -340,6 +316,7 @@ const TestBuilderDrawer: React.FC<TestBuilderDrawerProps> = ({
                       placeholder="e.g., Phase-phase voltage"
                       value={input.label}
                       onChange={(e) => updateInput(index, { label: e.target.value })}
+                      enablePlaceholderFill={true}
                       required
                     />
 
@@ -357,6 +334,7 @@ const TestBuilderDrawer: React.FC<TestBuilderDrawerProps> = ({
                       placeholder="e.g., V, Ω, A"
                       value={input.unit || ''}
                       onChange={(e) => updateInput(index, { unit: e.target.value })}
+                      enablePlaceholderFill={true}
                     />
 
                     <Select
@@ -402,10 +380,36 @@ const TestBuilderDrawer: React.FC<TestBuilderDrawerProps> = ({
                     placeholder="Optional guidance for this input..."
                     value={input.notes || ''}
                     onChange={(e) => updateInput(index, { notes: e.target.value })}
+                    enablePlaceholderFill={true}
                   />
                 </div>
               ))}
             </div>
+          </div>
+
+          <div>
+            {lockAsset && defaultAssetId ? (
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">
+                  Asset Type (optional)
+                </label>
+                <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">
+                  {defaultAssetLabel || 'Selected asset type'}
+                </div>
+              </div>
+            ) : (
+              <Select
+                label="Asset Type (optional)"
+                placeholder="No asset type selected"
+                value={selectedAssetType}
+                options={[
+                  { value: '', label: 'No asset type selected' },
+                  ...assetTypeOptions
+                ]}
+                onChange={setSelectedAssetType}
+                hint="Tests can be created without specifying an asset type. Link them later when using on specific assets."
+              />
+            )}
           </div>
 
           <div className="flex justify-end gap-3 pt-4">

@@ -947,8 +947,6 @@ const Admin: React.FC = () => {
   <TestBuilderDrawer
     isOpen={isTestDrawerOpen}
     onClose={() => setIsTestDrawerOpen(false)}
-    jobs={jobs}
-    defaultJobId={jobs.length === 1 ? jobs[0].id : undefined}
     onCreate={async (payload) => {
       try {
         await createNewTest(payload)

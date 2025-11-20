@@ -1,14 +1,19 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Test, TestInput, TestResult, TestResultResponse, TestResultStatus } from '../types/test'
+import { Asset } from '../types/asset'
+import { useAssets } from '../hooks/useAssets'
+import { useJobs } from '../hooks/useJobs'
 import Button from './ui/Button'
 import Input from './ui/Input'
 import TextArea from './ui/TextArea'
+import Select from './ui/Select'
 
 interface TestResultDrawerProps {
   isOpen: boolean
   test: Test
+  jobId?: string
   onClose: () => void
-  onSave: (responses: TestResultResponse[], existingResultId?: string, status?: TestResultStatus) => Promise<void>
+  onSave: (responses: TestResultResponse[], existingResultId?: string, status?: TestResultStatus, selectedAssetIds?: string[]) => Promise<void>
 }
 
 type InputValueState = string | boolean | null
@@ -183,14 +188,30 @@ const ValidationIndicator: React.FC<{ status: ExpectationStatus }> = ({ status }
   )
 }
 
-const TestResultDrawer: React.FC<TestResultDrawerProps> = ({ isOpen, test, onClose, onSave }) => {
+const TestResultDrawer: React.FC<TestResultDrawerProps> = ({ isOpen, test, jobId, onClose, onSave }) => {
   const inputs = useMemo(() => test.test_inputs || [], [test.test_inputs])
   const latestResult: TestResult | undefined = useMemo(() => test.test_results?.[0], [test.test_results])
 
+  const { assets: availableAssets, loading: assetsLoading } = useAssets(jobId)
+  const [selectedAssetIds, setSelectedAssetIds] = useState<string[]>([])
   const [values, setValues] = useState<Record<string, InputValueState>>({})
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
   const [submitting, setSubmitting] = useState(false)
+
+  // Filter assets based on test's asset type (if specified)
+  const filteredAssets = useMemo(() => {
+    if (!availableAssets) return []
+    if (!test.asset_type) return availableAssets
+    return availableAssets.filter(asset => asset.asset_type === test.asset_type)
+  }, [availableAssets, test.asset_type])
+
+  const assetOptions = useMemo(() => {
+    return filteredAssets.map(asset => ({
+      value: asset.id,
+      label: `${asset.make || ''} ${asset.model || ''} (${asset.asset_type})`.trim()
+    }))
+  }, [filteredAssets])
 
   useEffect(() => {
     if (!isOpen) {
@@ -236,6 +257,11 @@ const TestResultDrawer: React.FC<TestResultDrawerProps> = ({ isOpen, test, onClo
 
   const validateValues = () => {
     const newErrors: Record<string, string> = {}
+
+    // Validate asset selection
+    if (selectedAssetIds.length === 0) {
+      newErrors.assets = 'Select at least one asset for this test'
+    }
 
     inputs.forEach((input) => {
       const rawValue = values[input.id]
@@ -303,7 +329,7 @@ const TestResultDrawer: React.FC<TestResultDrawerProps> = ({ isOpen, test, onClo
     setStatusMessage(null)
     try {
       const responses = buildResponses()
-      await onSave(responses, latestResult?.id, 'submitted')
+      await onSave(responses, latestResult?.id, 'submitted', selectedAssetIds)
       setStatusMessage({ type: 'success', message: 'Results saved successfully.' })
       onClose()
     } catch (error) {
@@ -354,6 +380,63 @@ const TestResultDrawer: React.FC<TestResultDrawerProps> = ({ isOpen, test, onClo
               <p>{test.instructions}</p>
             </div>
           )}
+
+          {/* Asset Selection */}
+          <div className="rounded-xl border border-gray-200 p-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-3">Select Assets</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Choose the asset(s) this test is being performed on.
+              {test.asset_type && ` Only assets of type "${test.asset_type}" are shown.`}
+            </p>
+
+            {assetsLoading ? (
+              <div className="text-sm text-gray-500">Loading available assets...</div>
+            ) : assetOptions.length === 0 ? (
+              <div className="text-sm text-gray-500">
+                No assets available for this test.
+                {test.asset_type && ` Make sure you have assets of type "${test.asset_type}" in this job.`}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {assetOptions.map((asset) => (
+                  <label key={asset.value} className="flex items-center gap-3 p-3 rounded-lg border border-gray-200 hover:bg-gray-50 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={selectedAssetIds.includes(asset.value)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedAssetIds(prev => [...prev, asset.value])
+                        } else {
+                          setSelectedAssetIds(prev => prev.filter(id => id !== asset.value))
+                        }
+                        // Clear asset error when user makes selection
+                        setErrors(prev => {
+                          const next = { ...prev }
+                          delete next.assets
+                          return next
+                        })
+                      }}
+                      className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                    />
+                    <div className="flex-1">
+                      <div className="font-medium text-gray-900">{asset.label}</div>
+                      <div className="text-sm text-gray-500">ID: {asset.value}</div>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            )}
+
+            {errors.assets && (
+              <p className="mt-2 text-sm text-red-600">{errors.assets}</p>
+            )}
+
+            {selectedAssetIds.length > 0 && (
+              <div className="mt-3 text-sm text-green-600">
+                ✓ {selectedAssetIds.length} asset{selectedAssetIds.length !== 1 ? 's' : ''} selected
+              </div>
+            )}
+          </div>
 
           {inputs.length === 0 ? (
             <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 p-6 text-center text-sm text-gray-600">
