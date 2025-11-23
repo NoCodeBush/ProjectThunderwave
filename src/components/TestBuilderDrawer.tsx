@@ -112,6 +112,11 @@ const TestBuilderDrawer: React.FC<TestBuilderDrawerProps> = ({
         return false
       }
 
+      // Skip expected value validation for boolean (yes/no) inputs
+      if (input.inputType === 'boolean') {
+        continue
+      }
+
       if (input.expectedType === 'range') {
         if (input.expectedMin === null || input.expectedMax === null) {
           setStatusMessage({ type: 'error', message: 'Range expectations require both minimum and maximum values.' })
@@ -129,7 +134,7 @@ const TestBuilderDrawer: React.FC<TestBuilderDrawerProps> = ({
         return false
       }
 
-      if (input.expectedType === 'exact' && input.expectedValue === null && input.inputType !== 'text' && input.inputType !== 'boolean') {
+      if (input.expectedType === 'exact' && input.expectedValue === null && input.inputType !== 'text') {
         setStatusMessage({ type: 'error', message: 'Exact expectations require a value.' })
         return false
       }
@@ -361,63 +366,67 @@ const TestBuilderDrawer: React.FC<TestBuilderDrawerProps> = ({
                     </div>
                   </div>
 
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <Input
-                      label="Unit"
-                      placeholder="e.g., V, Ω, A"
-                      value={input.unit || ''}
-                      onChange={(e) => updateInput(index, { unit: e.target.value })}
-                    />
+                  {input.inputType !== 'boolean' && (
+                    <>
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <Input
+                          label="Unit"
+                          placeholder="e.g., V, Ω, A"
+                          value={input.unit || ''}
+                          onChange={(e) => updateInput(index, { unit: e.target.value })}
+                        />
 
-                    <div>
-                      <label className="mb-1 block text-sm font-medium text-gray-700">
-                        Expected Type
-                      </label>
-                      <select
-                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                        value={input.expectedType}
-                        onChange={(e) => updateInput(index, { expectedType: e.target.value as TestExpectedType })}
-                      >
-                        {expectedTypeOptions.map(option => (
-                          <option key={option.value} value={option.value}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </select>
-                      <p className="mt-1 text-xs text-gray-500">
-                        {expectedTypeOptions.find(opt => opt.value === input.expectedType)?.description}
-                      </p>
-                    </div>
-                  </div>
+                        <div>
+                          <label className="mb-1 block text-sm font-medium text-gray-700">
+                            Expected Type
+                          </label>
+                          <select
+                            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                            value={input.expectedType}
+                            onChange={(e) => updateInput(index, { expectedType: e.target.value as TestExpectedType })}
+                          >
+                            {expectedTypeOptions.map(option => (
+                              <option key={option.value} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                          <p className="mt-1 text-xs text-gray-500">
+                            {expectedTypeOptions.find(opt => opt.value === input.expectedType)?.description}
+                          </p>
+                        </div>
+                      </div>
 
-                  <div className="grid gap-4 md:grid-cols-3">
-                    {(input.expectedType === 'range' || input.expectedType === 'minimum') && (
-                      <Input
-                        label="Minimum Value"
-                        type="number"
-                        value={input.expectedMin ?? ''}
-                        onChange={(e) => handleNumericChange(index, 'expectedMin', e.target.value)}
-                      />
-                    )}
+                      <div className="grid gap-4 md:grid-cols-3">
+                        {(input.expectedType === 'range' || input.expectedType === 'minimum') && (
+                          <Input
+                            label="Minimum Value"
+                            type="number"
+                            value={input.expectedMin ?? ''}
+                            onChange={(e) => handleNumericChange(index, 'expectedMin', e.target.value)}
+                          />
+                        )}
 
-                    {(input.expectedType === 'range' || input.expectedType === 'maximum') && (
-                      <Input
-                        label="Maximum Value"
-                        type="number"
-                        value={input.expectedMax ?? ''}
-                        onChange={(e) => handleNumericChange(index, 'expectedMax', e.target.value)}
-                      />
-                    )}
+                        {(input.expectedType === 'range' || input.expectedType === 'maximum') && (
+                          <Input
+                            label="Maximum Value"
+                            type="number"
+                            value={input.expectedMax ?? ''}
+                            onChange={(e) => handleNumericChange(index, 'expectedMax', e.target.value)}
+                          />
+                        )}
 
-                    {input.expectedType === 'exact' && (
-                      <Input
-                        label="Expected Value"
-                        type="number"
-                        value={input.expectedValue ?? ''}
-                        onChange={(e) => handleNumericChange(index, 'expectedValue', e.target.value)}
-                      />
-                    )}
-                  </div>
+                        {input.expectedType === 'exact' && (
+                          <Input
+                            label="Expected Value"
+                            type="number"
+                            value={input.expectedValue ?? ''}
+                            onChange={(e) => handleNumericChange(index, 'expectedValue', e.target.value)}
+                          />
+                        )}
+                      </div>
+                    </>
+                  )}
 
                   <TextArea
                     label="Notes"
