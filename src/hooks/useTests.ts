@@ -61,17 +61,19 @@ export const useTests = (options: UseTestsOptions = {}) => {
         jobAssetTypes = (jobAssets || [])
           .map(asset => asset.asset_type)
           .filter(Boolean)
+        
+        // Remove duplicates
+        jobAssetTypes = [...new Set(jobAssetTypes)]
       }
 
       // Build the query filter
-      if (jobId) {
-        if (includeJobAssetTypes && jobAssetTypes.length > 0) {
-          // Include tests that are either directly linked to the job OR match the job's asset types
-          query = query.or(`job_id.eq.${jobId},asset_type.in.(${jobAssetTypes.join(',')})`)
-        } else {
-          // Only include tests directly linked to the job
-          query = query.eq('job_id', jobId)
-        }
+      if (includeJobAssetTypes && jobId && jobAssetTypes.length > 0) {
+        // When filtering by job asset types, only show tests that match those asset types
+        // Tests are no longer directly linked to jobs, only to asset types
+        query = query.in('asset_type', jobAssetTypes)
+      } else if (jobId && !includeJobAssetTypes) {
+        // Legacy behavior: include tests directly linked to the job
+        query = query.eq('job_id', jobId)
       }
 
       if (unlinkedOnly) {
@@ -84,12 +86,47 @@ export const useTests = (options: UseTestsOptions = {}) => {
 
       if (queryError) throw queryError
 
+      // Fetch asset associations for all test results
+      const testResultIds: string[] = []
+      if (includeResults && data) {
+        data.forEach((test: any) => {
+          if (test.test_results && Array.isArray(test.test_results)) {
+            test.test_results.forEach((result: any) => {
+              if (result.id) {
+                testResultIds.push(result.id)
+              }
+            })
+          }
+        })
+      }
+
+      let assetAssociations: Record<string, string[]> = {}
+      if (testResultIds.length > 0) {
+        const { data: assetData, error: assetError } = await supabase
+          .from('test_result_assets')
+          .select('test_result_id, asset_id')
+          .in('test_result_id', testResultIds)
+
+        if (!assetError && assetData) {
+          assetAssociations = assetData.reduce((acc: Record<string, string[]>, row: any) => {
+            if (!acc[row.test_result_id]) {
+              acc[row.test_result_id] = []
+            }
+            acc[row.test_result_id].push(row.asset_id)
+            return acc
+          }, {})
+        }
+      }
+
       const normalized = (data || []).map((row: any) => ({
         ...row,
         test_inputs: row.test_inputs
           ? [...row.test_inputs].sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
           : undefined,
-        test_results: row.test_results || []
+        test_results: (row.test_results || []).map((result: any) => ({
+          ...result,
+          asset_ids: assetAssociations[result.id] || []
+        }))
       })) as Test[]
 
       setTests(normalized)
@@ -146,11 +183,15 @@ export const useTests = (options: UseTestsOptions = {}) => {
       throw new Error('At least one test input is required')
     }
 
+    if (!assetType) {
+      throw new Error('An asset type must be specified for the test')
+    }
+
     const { data: testRecord, error: insertError } = await supabase
       .from('tests')
       .insert({
-        job_id: jobId || null,
-        asset_type: assetType || null,
+        job_id: jobId || null, // job_id is now optional - tests are linked to asset types
+        asset_type: assetType,
         name,
         description: description || null,
         instructions: instructions || null,

@@ -1,17 +1,16 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Test, TestInput, TestResult, TestResultResponse, TestResultStatus } from '../types/test'
-import { Asset } from '../types/asset'
 import { useAssets } from '../hooks/useAssets'
-import { useJobs } from '../hooks/useJobs'
 import Button from './ui/Button'
 import Input from './ui/Input'
 import TextArea from './ui/TextArea'
-import Select from './ui/Select'
 
 interface TestResultDrawerProps {
   isOpen: boolean
   test: Test
   jobId?: string
+  defaultAssetId?: string // Pre-select and lock this asset
+  defaultResultId?: string // Pre-load this result if editing
   onClose: () => void
   onSave: (responses: TestResultResponse[], existingResultId?: string, status?: TestResultStatus, selectedAssetIds?: string[]) => Promise<void>
 }
@@ -188,12 +187,20 @@ const ValidationIndicator: React.FC<{ status: ExpectationStatus }> = ({ status }
   )
 }
 
-const TestResultDrawer: React.FC<TestResultDrawerProps> = ({ isOpen, test, jobId, onClose, onSave }) => {
+const TestResultDrawer: React.FC<TestResultDrawerProps> = ({ isOpen, test, jobId, defaultAssetId, defaultResultId, onClose, onSave }) => {
   const inputs = useMemo(() => test.test_inputs || [], [test.test_inputs])
-  const latestResult: TestResult | undefined = useMemo(() => test.test_results?.[0], [test.test_results])
+  
+  // If defaultResultId is provided, use that specific result, otherwise use the latest
+  const latestResult: TestResult | undefined = useMemo(() => {
+    if (defaultResultId && test.test_results) {
+      return test.test_results.find(r => r.id === defaultResultId)
+    }
+    return test.test_results?.[0]
+  }, [test.test_results, defaultResultId])
 
   const { assets: availableAssets, loading: assetsLoading } = useAssets(jobId)
   const [selectedAssetIds, setSelectedAssetIds] = useState<string[]>([])
+  const isAssetLocked = Boolean(defaultAssetId)
   const [values, setValues] = useState<Record<string, InputValueState>>({})
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
@@ -233,10 +240,23 @@ const TestResultDrawer: React.FC<TestResultDrawerProps> = ({ isOpen, test, jobId
       })
     }
 
+    // Initialize selected assets from defaultAssetId or existing result
+    if (defaultAssetId) {
+      // Lock to the provided asset
+      setSelectedAssetIds([defaultAssetId])
+    } else if (latestResult?.asset_ids && latestResult.asset_ids.length > 0) {
+      setSelectedAssetIds(latestResult.asset_ids)
+    } else if (latestResult?.asset_id) {
+      // Fallback to legacy asset_id field for backward compatibility
+      setSelectedAssetIds([latestResult.asset_id])
+    } else {
+      setSelectedAssetIds([])
+    }
+
     setValues(initialValues)
     setErrors({})
     setStatusMessage(null)
-  }, [isOpen, inputs, latestResult])
+  }, [isOpen, inputs, latestResult, defaultAssetId])
 
   const handleClose = () => {
     if (submitting) return
@@ -258,8 +278,8 @@ const TestResultDrawer: React.FC<TestResultDrawerProps> = ({ isOpen, test, jobId
   const validateValues = () => {
     const newErrors: Record<string, string> = {}
 
-    // Validate asset selection
-    if (selectedAssetIds.length === 0) {
+    // Validate asset selection (skip if locked, should always have defaultAssetId)
+    if (!isAssetLocked && selectedAssetIds.length === 0) {
       newErrors.assets = 'Select at least one asset for this test'
     }
 
@@ -383,11 +403,22 @@ const TestResultDrawer: React.FC<TestResultDrawerProps> = ({ isOpen, test, jobId
 
           {/* Asset Selection */}
           <div className="rounded-xl border border-gray-200 p-4">
-            <h3 className="text-lg font-semibold text-gray-900 mb-3">Select Assets</h3>
-            <p className="text-sm text-gray-600 mb-4">
-              Choose the asset(s) this test is being performed on.
-              {test.asset_type && ` Only assets of type "${test.asset_type}" are shown.`}
-            </p>
+            <div className="flex items-center gap-2 mb-3">
+              <h3 className="text-lg font-semibold text-gray-900">
+                {isAssetLocked ? 'Asset' : 'Select Assets'}
+              </h3>
+              <span className="text-sm font-medium text-red-600">* Required</span>
+            </div>
+            {isAssetLocked ? (
+              <p className="text-sm text-gray-600 mb-4">
+                This test is linked to a specific asset.
+              </p>
+            ) : (
+              <p className="text-sm text-gray-600 mb-4">
+                You must select at least one asset to link this test result to.
+                {test.asset_type && ` Only assets of type "${test.asset_type}" are shown.`}
+              </p>
+            )}
 
             {assetsLoading ? (
               <div className="text-sm text-gray-500">Loading available assets...</div>
@@ -396,14 +427,43 @@ const TestResultDrawer: React.FC<TestResultDrawerProps> = ({ isOpen, test, jobId
                 No assets available for this test.
                 {test.asset_type && ` Make sure you have assets of type "${test.asset_type}" in this job.`}
               </div>
+            ) : isAssetLocked && defaultAssetId ? (
+              <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                {(() => {
+                  const lockedAsset = availableAssets?.find(a => a.id === defaultAssetId)
+                  if (!lockedAsset) {
+                    return <div className="text-sm text-gray-500">Loading asset...</div>
+                  }
+                  const assetLabel = lockedAsset.make || lockedAsset.model 
+                    ? `${lockedAsset.make || ''} ${lockedAsset.model || ''}`.trim() 
+                    : lockedAsset.asset_type
+                  return (
+                    <div>
+                      <div className="font-medium text-gray-900">{assetLabel}</div>
+                      {lockedAsset.serial_number && (
+                        <div className="text-sm text-gray-500 mt-1">Serial: {lockedAsset.serial_number}</div>
+                      )}
+                      <div className="text-sm text-gray-500">Type: {lockedAsset.asset_type}</div>
+                    </div>
+                  )
+                })()}
+              </div>
             ) : (
               <div className="space-y-3">
                 {assetOptions.map((asset) => (
-                  <label key={asset.value} className="flex items-center gap-3 p-3 rounded-lg border border-gray-200 hover:bg-gray-50 cursor-pointer">
+                  <label 
+                    key={asset.value} 
+                    className={`flex items-center gap-3 p-3 rounded-lg border border-gray-200 ${
+                      isAssetLocked && asset.value === defaultAssetId
+                        ? 'bg-gray-50 cursor-not-allowed'
+                        : 'hover:bg-gray-50 cursor-pointer'
+                    }`}
+                  >
                     <input
                       type="checkbox"
                       checked={selectedAssetIds.includes(asset.value)}
                       onChange={(e) => {
+                        if (isAssetLocked) return // Prevent changes when locked
                         if (e.target.checked) {
                           setSelectedAssetIds(prev => [...prev, asset.value])
                         } else {
@@ -416,7 +476,8 @@ const TestResultDrawer: React.FC<TestResultDrawerProps> = ({ isOpen, test, jobId
                           return next
                         })
                       }}
-                      className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                      disabled={isAssetLocked}
+                      className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500 disabled:opacity-50"
                     />
                     <div className="flex-1">
                       <div className="font-medium text-gray-900">{asset.label}</div>
@@ -546,7 +607,7 @@ const TestResultDrawer: React.FC<TestResultDrawerProps> = ({ isOpen, test, jobId
           <Button variant="secondary" onClick={handleClose} disabled={submitting}>
             Cancel
           </Button>
-          <Button onClick={handleSubmit} disabled={submitting || inputs.length === 0}>
+          <Button onClick={handleSubmit} disabled={submitting || inputs.length === 0 || (!isAssetLocked && selectedAssetIds.length === 0)}>
             {submitting ? 'Saving...' : 'Submit Results'}
           </Button>
         </div>

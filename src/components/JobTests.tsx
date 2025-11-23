@@ -3,42 +3,86 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { ROUTES } from '../constants'
 import { useJobs } from '../hooks/useJobs'
 import { useTests } from '../hooks/useTests'
+import { useAssets } from '../hooks/useAssets'
 import { formatDate } from '../utils/date'
+import { Test, TestResultResponse, TestResultStatus } from '../types/test'
+import { Asset, ASSET_TYPE_CONFIGS } from '../types/asset'
 import Button from './ui/Button'
 import Input from './ui/Input'
-import TestBuilderDrawer from './TestBuilderDrawer'
 import TestResultDrawer from './TestResultDrawer'
-import { TestResultResponse, TestResultStatus } from '../types/test'
+
+interface TestInstance {
+  test: Test
+  asset: Asset
+  resultId?: string // Latest result ID for this test-asset combination
+}
 
 const JobTests: React.FC = () => {
   const { jobId } = useParams<{ jobId: string }>()
   const navigate = useNavigate()
   const { jobs, loading: jobsLoading } = useJobs()
-  const { tests, loading: testsLoading, createTest, saveTestResult } = useTests({ jobId, includeJobAssetTypes: true })
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false)
+  const { tests, loading: testsLoading, saveTestResult } = useTests({ jobId, includeJobAssetTypes: true, includeResults: true })
+  const { assets, loading: assetsLoading } = useAssets(jobId)
   const [search, setSearch] = useState('')
-  const [onlyUnlinked, setOnlyUnlinked] = useState(false)
   const [activeTestId, setActiveTestId] = useState<string | null>(null)
+  const [activeAssetId, setActiveAssetId] = useState<string | null>(null)
 
   const job = jobs.find(j => j.id === jobId)
 
-  const filteredTests = useMemo(() => {
+  // Expand tests to show one per asset of that type
+  const testInstances = useMemo(() => {
+    if (!tests || !assets) return []
+    
+    const instances: TestInstance[] = []
+    
+    tests.forEach(test => {
+      if (!test.asset_type) return
+      
+      // Find all assets of this test's asset type
+      const matchingAssets = assets.filter(asset => asset.asset_type === test.asset_type)
+      
+      matchingAssets.forEach(asset => {
+        // Find the latest result for this test-asset combination
+        // Results are linked via test_result_assets junction table (asset_ids) or legacy asset_id field
+        const result = test.test_results?.find(r => 
+          (r.asset_ids && r.asset_ids.length > 0 && r.asset_ids.includes(asset.id)) ||
+          r.asset_id === asset.id
+        )
+        
+        instances.push({
+          test,
+          asset,
+          resultId: result?.id
+        })
+      })
+    })
+    
+    return instances
+  }, [tests, assets])
+
+  const filteredTestInstances = useMemo(() => {
     const query = search.trim().toLowerCase()
-    return tests.filter(test => {
-      if (onlyUnlinked && test.asset_id) return false
-      if (!query) return true
+    if (!query) return testInstances
+    
+    return testInstances.filter(instance => {
+      const test = instance.test
       return (
         test.name.toLowerCase().includes(query) ||
         (test.description || '').toLowerCase().includes(query) ||
-        (test.instructions || '').toLowerCase().includes(query)
+        (test.instructions || '').toLowerCase().includes(query) ||
+        instance.asset.make?.toLowerCase().includes(query) ||
+        instance.asset.model?.toLowerCase().includes(query) ||
+        instance.asset.serial_number?.toLowerCase().includes(query)
       )
     })
-  }, [tests, search, onlyUnlinked])
+  }, [testInstances, search])
 
-  const activeTest = useMemo(() => {
-    if (!activeTestId) return null
-    return tests.find(test => test.id === activeTestId) || null
-  }, [activeTestId, tests])
+  const activeTestInstance = useMemo(() => {
+    if (!activeTestId || !activeAssetId) return null
+    return testInstances.find(
+      instance => instance.test.id === activeTestId && instance.asset.id === activeAssetId
+    ) || null
+  }, [activeTestId, activeAssetId, testInstances])
 
   const handleSaveResults = async (
     responses: TestResultResponse[],
@@ -46,22 +90,32 @@ const JobTests: React.FC = () => {
     status: TestResultStatus = 'submitted',
     selectedAssetIds?: string[]
   ) => {
-    if (!activeTest) {
-      throw new Error('Cannot save results without an active test.')
+    if (!activeTestInstance) {
+      throw new Error('Cannot save results without an active test instance.')
     }
 
+    // Always save with the specific asset_id for this instance
     await saveTestResult({
-      testId: activeTest.id,
-      jobId: activeTest.job_id || jobId,
-      assetIds: selectedAssetIds || [],
-      assetId: activeTest.asset_id,
+      testId: activeTestInstance.test.id,
+      jobId: jobId || undefined,
+      assetIds: [activeTestInstance.asset.id], // Only the asset for this instance
       responses,
       resultId: existingResultId,
       status
     })
   }
 
-  if (jobsLoading || testsLoading) {
+  const handleTestClick = (testId: string, assetId: string) => {
+    setActiveTestId(testId)
+    setActiveAssetId(assetId)
+  }
+
+  const handleCloseDrawer = () => {
+    setActiveTestId(null)
+    setActiveAssetId(null)
+  }
+
+  if (jobsLoading || testsLoading || assetsLoading) {
     return (
       <div className="min-h-screen bg-gray-50 safe-area-inset flex items-center justify-center">
         <div className="text-center">
@@ -119,9 +173,6 @@ const JobTests: React.FC = () => {
               >
                 Manage Assets
               </Button>
-              <Button onClick={() => setIsDrawerOpen(true)}>
-                New Test
-              </Button>
             </div>
           </div>
         </div>
@@ -131,8 +182,8 @@ const JobTests: React.FC = () => {
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-4">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
-              <h2 className="text-lg font-semibold text-gray-900">{tests.length} {tests.length === 1 ? 'Test' : 'Tests'}</h2>
-              <p className="text-sm text-gray-600">Search, filter, and create commissioning test forms for this job.</p>
+              <h2 className="text-lg font-semibold text-gray-900">{testInstances.length} {testInstances.length === 1 ? 'Test Instance' : 'Test Instances'}</h2>
+              <p className="text-sm text-gray-600">Each test is shown once per asset of that type. Create tests in the Admin area.</p>
             </div>
             <div className="flex flex-col gap-3 md:flex-row md:items-center">
               <Input
@@ -142,43 +193,38 @@ const JobTests: React.FC = () => {
                 placeholder="Search tests..."
                 className="md:w-64"
               />
-              <label className="inline-flex items-center text-sm text-gray-700">
-                <input
-                  type="checkbox"
-                  className="mr-2 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                  checked={onlyUnlinked}
-                  onChange={(e) => setOnlyUnlinked(e.target.checked)}
-                />
-                Show only unlinked tests
-              </label>
             </div>
           </div>
 
-          {filteredTests.length === 0 ? (
+          {filteredTestInstances.length === 0 ? (
             <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 p-6 text-center">
               <p className="text-sm text-gray-600">
-                {tests.length === 0
-                  ? 'No tests have been created for this job yet.'
-                  : 'No tests match your current filters.'}
+                {testInstances.length === 0
+                  ? 'No test instances available. Make sure you have assets and corresponding tests created in the Admin area.'
+                  : 'No test instances match your current filters.'}
               </p>
-              <Button className="mt-4" onClick={() => setIsDrawerOpen(true)}>
-                Create Test
-              </Button>
             </div>
           ) : (
             <div className="space-y-3">
-              {filteredTests.map((test) => {
-                const latestResult = test.test_results?.[0]
+              {filteredTestInstances.map((instance) => {
+                const { test, asset, resultId } = instance
+                const latestResult = resultId ? test.test_results?.find(r => r.id === resultId) : undefined
+                const assetLabel = asset.make || asset.model ? `${asset.make || ''} ${asset.model || ''}`.trim() : ASSET_TYPE_CONFIGS[asset.asset_type]?.label || asset.asset_type
+                const assetDetails = asset.serial_number ? `Serial: ${asset.serial_number}` : asset.asset_type
+                
                 return (
                   <div
-                    key={test.id}
+                    key={`${test.id}-${asset.id}`}
                     className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm"
                   >
                     <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                       <div>
                         <p className="text-base font-semibold text-gray-900">{test.name}</p>
-                        <p className="text-sm text-gray-600">
-                          {test.asset_id ? `Linked to asset` : 'Unlinked test'}
+                        <p className="text-sm text-gray-700 mt-1">
+                          Asset: {assetLabel}
+                        </p>
+                        <p className="text-sm text-gray-500">
+                          {assetDetails}
                         </p>
                       </div>
                       <div className="text-sm text-gray-500">
@@ -221,7 +267,7 @@ const JobTests: React.FC = () => {
                     <div className="mt-4 flex flex-wrap items-center justify-end gap-3">
                       <Button
                         size="sm"
-                        onClick={() => setActiveTestId(test.id)}
+                        onClick={() => handleTestClick(test.id, asset.id)}
                       >
                         {latestResult ? 'View / Edit Results' : 'Complete Test'}
                       </Button>
@@ -234,23 +280,14 @@ const JobTests: React.FC = () => {
         </div>
       </main>
 
-      <TestBuilderDrawer
-        isOpen={isDrawerOpen}
-        onClose={() => setIsDrawerOpen(false)}
-        defaultJobId={jobId}
-        lockJob={true}
-        onCreate={async (payload) => {
-          await createTest(payload)
-          setIsDrawerOpen(false)
-        }}
-      />
-
-      {activeTest && (
+      {activeTestInstance && (
         <TestResultDrawer
-          isOpen={Boolean(activeTest)}
-          test={activeTest}
+          isOpen={Boolean(activeTestInstance)}
+          test={activeTestInstance.test}
           jobId={jobId}
-          onClose={() => setActiveTestId(null)}
+          defaultAssetId={activeTestInstance.asset.id}
+          defaultResultId={activeTestInstance.resultId}
+          onClose={handleCloseDrawer}
           onSave={handleSaveResults}
         />
       )}

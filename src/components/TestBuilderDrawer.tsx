@@ -104,14 +104,21 @@ const TestBuilderDrawer: React.FC<TestBuilderDrawerProps> = ({
       return false
     }
 
+    // Asset type is required unless we're in a locked asset context
+    if (!lockAsset && !effectiveAssetType) {
+      setStatusMessage({ type: 'error', message: 'An asset type must be selected for this test.' })
+      return false
+    }
+
     for (const input of inputs) {
       if (!input.label.trim()) {
         setStatusMessage({ type: 'error', message: 'Each input must have a label.' })
         return false
       }
 
-      // Skip expected value validation for boolean (yes/no) inputs
-      if (input.inputType === 'boolean') {
+      // Skip expected value validation for boolean (yes/no) and text inputs
+      // Only number inputs need expected value validation
+      if (input.inputType !== 'number') {
         continue
       }
 
@@ -132,7 +139,7 @@ const TestBuilderDrawer: React.FC<TestBuilderDrawerProps> = ({
         return false
       }
 
-      if (input.expectedType === 'exact' && input.expectedValue === null && input.inputType !== 'text') {
+      if (input.expectedType === 'exact' && input.expectedValue === null) {
         setStatusMessage({ type: 'error', message: 'Exact expectations require a value.' })
         return false
       }
@@ -155,7 +162,7 @@ const TestBuilderDrawer: React.FC<TestBuilderDrawerProps> = ({
         name: testName.trim(),
         description: description.trim() || undefined,
         instructions: instructions.trim() || undefined,
-        jobId: selectedJobId || undefined,
+        jobId: lockJob ? selectedJobId : undefined, // Only include jobId if locked
         assetType: effectiveAssetType || undefined,
         inputs
       })
@@ -235,25 +242,7 @@ const TestBuilderDrawer: React.FC<TestBuilderDrawerProps> = ({
             required
           />
 
-          {!lockJob && (
-            <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">
-                Job (optional)
-              </label>
-              <Select
-                value={selectedJobId}
-                options={[
-                  { value: '', label: 'No job selected' },
-                  ...jobOptions
-                ]}
-                onChange={setSelectedJobId}
-                placeholder="Select a job (optional)"
-              />
-              <p className="mt-1 text-xs text-gray-500">
-                Tests can be created without linking to a specific job. Link them later if needed.
-              </p>
-            </div>
-          )}
+          {/* Job selection removed - tests are no longer linked to jobs initially */}
 
           {lockJob && defaultJobId && (
             <div>
@@ -333,7 +322,7 @@ const TestBuilderDrawer: React.FC<TestBuilderDrawerProps> = ({
                     />
                   </div>
 
-                  {input.inputType !== 'boolean' && (
+                  {input.inputType === 'number' && (
                     <>
                       <div className="grid gap-4 md:grid-cols-2">
                         <Input
@@ -341,44 +330,16 @@ const TestBuilderDrawer: React.FC<TestBuilderDrawerProps> = ({
                           placeholder="e.g., V, Ω, A"
                           value={input.unit || ''}
                           onChange={(e) => updateInput(index, { unit: e.target.value })}
+                          enablePlaceholderFill={true}
                         />
 
-                        <div>
-                          <label className="mb-1 block text-sm font-medium text-gray-700">
-                            Expected Type
-                          </label>
-                          <select
-                            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                            value={input.expectedType}
-                            onChange={(e) => updateInput(index, { expectedType: e.target.value as TestExpectedType })}
-                          >
-                            {expectedTypeOptions.map(option => (
-                              <option key={option.value} value={option.value}>
-                                {option.label}
-                              </option>
-                            ))}
-                          </select>
-                          <p className="mt-1 text-xs text-gray-500">
-                            {expectedTypeOptions.find(opt => opt.value === input.expectedType)?.description}
-                          </p>
-                        </div>
+                        <Select
+                          label="Expected Type"
+                          value={input.expectedType}
+                          options={expectedTypeOptions}
+                          onChange={(value) => updateInput(index, { expectedType: value as TestExpectedType })}
+                        />
                       </div>
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <Input
-                      label="Unit"
-                      placeholder="e.g., V, Ω, A"
-                      value={input.unit || ''}
-                      onChange={(e) => updateInput(index, { unit: e.target.value })}
-                      enablePlaceholderFill={true}
-                    />
-
-                    <Select
-                      label="Expected Type"
-                      value={input.expectedType}
-                      options={expectedTypeOptions}
-                      onChange={(value) => updateInput(index, { expectedType: value as TestExpectedType })}
-                    />
-                  </div>
 
                       <div className="grid gap-4 md:grid-cols-3">
                         {(input.expectedType === 'range' || input.expectedType === 'minimum') && (
@@ -428,7 +389,7 @@ const TestBuilderDrawer: React.FC<TestBuilderDrawerProps> = ({
             {lockAsset && defaultAssetId ? (
               <div>
                 <label className="mb-1 block text-sm font-medium text-gray-700">
-                  Asset Type (optional)
+                  Asset Type <span className="text-red-600">*</span>
                 </label>
                 <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">
                   {defaultAssetLabel || 'Selected asset type'}
@@ -436,15 +397,13 @@ const TestBuilderDrawer: React.FC<TestBuilderDrawerProps> = ({
               </div>
             ) : (
               <Select
-                label="Asset Type (optional)"
-                placeholder="No asset type selected"
+                label="Asset Type"
+                placeholder="Select an asset type"
                 value={selectedAssetType}
-                options={[
-                  { value: '', label: 'No asset type selected' },
-                  ...assetTypeOptions
-                ]}
+                options={assetTypeOptions}
                 onChange={setSelectedAssetType}
-                hint="Tests can be created without specifying an asset type. Link them later when using on specific assets."
+                required
+                hint="Tests must be linked to an asset type. They will be available for all assets of this type across all jobs."
               />
             )}
           </div>

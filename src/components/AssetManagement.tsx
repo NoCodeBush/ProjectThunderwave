@@ -10,8 +10,8 @@ import Button from './ui/Button'
 import Input from './ui/Input'
 import TextArea from './ui/TextArea'
 import Select from './ui/Select'
-import TestBuilderDrawer from './TestBuilderDrawer'
-import { Test } from '../types/test'
+import { Test, TestResult } from '../types/test'
+import { formatDate } from '../utils/date'
 
 const AssetManagement: React.FC = () => {
   const { jobId } = useParams<{ jobId: string }>()
@@ -20,22 +20,16 @@ const AssetManagement: React.FC = () => {
   const { assets, loading: assetsLoading, addAsset, deleteAsset, refreshAssets } = useAssets(jobId)
   const {
     tests: jobTests,
-    loading: testsLoading,
-    createTest,
-    linkTestToAsset,
-    unlinkTestFromAsset
-  } = useTests({ jobId })
+    loading: testsLoading
+  } = useTests({ jobId, includeResults: true, includeJobAssetTypes: true })
   const [showAddForm, setShowAddForm] = useState(false)
   const [formData, setFormData] = useState({
     asset_type: '' as AssetType
   })
   const [properties, setProperties] = useState<Record<string, any>>({})
   const [banner, setBanner] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
-  const [isTestDrawerOpen, setIsTestDrawerOpen] = useState(false)
-  const [assetForTest, setAssetForTest] = useState<Asset | null>(null)
 
   const job = jobs.find(j => j.id === jobId)
-  const unlinkedTests = useMemo(() => jobTests.filter(test => !test.asset_id), [jobTests])
 
   if (jobsLoading || assetsLoading || testsLoading) {
     return (
@@ -158,15 +152,6 @@ const AssetManagement: React.FC = () => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                 </svg>
                 <span className="hidden lg:inline">Refresh</span>
-              </Button>
-              <Button
-                variant="secondary"
-                onClick={() => {
-                  setAssetForTest(null)
-                  setIsTestDrawerOpen(true)
-                }}
-              >
-                Create Test
               </Button>
               <Button onClick={() => setShowAddForm(!showAddForm)} variant="primary" className="text-sm">
                 <span className="hidden sm:inline">{showAddForm ? 'Cancel' : 'Add Asset'}</span>
@@ -301,58 +286,13 @@ const AssetManagement: React.FC = () => {
                   key={asset.id}
                   asset={asset}
                   onDelete={handleDeleteAsset}
-                  onCreateTest={() => {
-                    setAssetForTest(asset)
-                    setIsTestDrawerOpen(true)
-                  }}
                   tests={jobTests}
-                  unlinkedTests={unlinkedTests}
-                  onLinkTest={async (testId) => {
-                    if (!job) return
-                    try {
-                      await linkTestToAsset(testId, asset.id, job.id)
-                      setBanner({ message: 'Test linked to asset successfully!', type: 'success' })
-                    } catch (error) {
-                      console.error('Error linking test:', error)
-                      setBanner({ message: 'Failed to link test.', type: 'error' })
-                    }
-                  }}
-                  onUnlinkTest={async (testId) => {
-                    try {
-                      await unlinkTestFromAsset(testId)
-                      setBanner({ message: 'Test unlinked successfully.', type: 'success' })
-                    } catch (error) {
-                      console.error('Error unlinking test:', error)
-                      setBanner({ message: 'Failed to unlink test.', type: 'error' })
-                    }
-                  }}
                 />
               ))}
             </div>
           )}
         </div>
       </main>
-      <TestBuilderDrawer
-        isOpen={isTestDrawerOpen}
-        onClose={() => {
-          setIsTestDrawerOpen(false)
-          setAssetForTest(null)
-        }}
-        defaultAssetId={assetForTest?.asset_type}
-        defaultAssetLabel={assetForTest ? ASSET_TYPE_CONFIGS[assetForTest.asset_type]?.label : undefined}
-        lockAsset={Boolean(assetForTest)}
-        onCreate={async (payload) => {
-          try {
-            await createTest(payload)
-            setBanner({ message: 'Test created successfully!', type: 'success' })
-            setIsTestDrawerOpen(false)
-            setAssetForTest(null)
-          } catch (error) {
-            console.error('Error creating test:', error)
-            setBanner({ message: 'Failed to create test.', type: 'error' })
-          }
-        }}
-      />
     </div>
   )
 }
@@ -361,22 +301,52 @@ const AssetManagement: React.FC = () => {
 const AssetCard: React.FC<{
   asset: Asset
   onDelete: (id: string) => void
-  onCreateTest: () => void
   tests: Test[]
-  unlinkedTests: Test[]
-  onLinkTest: (testId: string) => Promise<void>
-  onUnlinkTest: (testId: string) => Promise<void>
-}> = ({ asset, onDelete, onCreateTest, tests, unlinkedTests, onLinkTest, onUnlinkTest }) => {
+}> = ({ asset, onDelete, tests }) => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
-  const [selectedTestId, setSelectedTestId] = useState('')
-  const [linking, setLinking] = useState(false)
-  const [unlinkingId, setUnlinkingId] = useState<string | null>(null)
   const config = ASSET_TYPE_CONFIGS[asset.asset_type] || {
     label: 'Unknown Asset Type',
     icon: '❓',
     properties: []
   }
-  const assetTests = tests.filter(test => test.asset_id === asset.id)
+
+  // Find completed test results for this asset
+  const completedResults = useMemo(() => {
+    const results: Array<{ test: Test; result: TestResult }> = []
+    
+    tests.forEach(test => {
+      if (!test.test_results) return
+      
+      test.test_results.forEach(result => {
+        // Check if this result is for this asset (via asset_ids array or legacy asset_id)
+        const isForThisAsset = 
+          (result.asset_ids && result.asset_ids.includes(asset.id)) ||
+          result.asset_id === asset.id
+        
+        // Only include submitted (completed) results
+        if (isForThisAsset && result.status === 'submitted') {
+          results.push({ test, result })
+        }
+      })
+    })
+    
+    // Sort by submitted_at, most recent first
+    return results.sort((a, b) => 
+      new Date(b.result.submitted_at).getTime() - new Date(a.result.submitted_at).getTime()
+    )
+  }, [tests, asset.id])
+
+  // Find tests for this asset type that haven't been completed for this asset
+  const pendingTests = useMemo(() => {
+    // Get all tests for this asset type
+    const testsForAssetType = tests.filter(test => test.asset_type === asset.asset_type)
+    
+    // Get test IDs that have completed results for this asset
+    const completedTestIds = new Set(completedResults.map(r => r.test.id))
+    
+    // Return tests that don't have completed results
+    return testsForAssetType.filter(test => !completedTestIds.has(test.id))
+  }, [tests, asset.asset_type, completedResults])
 
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -465,91 +435,78 @@ const AssetCard: React.FC<{
       </div>
 
       <div className="mt-4 rounded-xl border border-gray-100 p-4">
-        <div className="mb-4 flex items-center justify-between">
-          <div>
-            <h4 className="text-sm font-semibold text-gray-900">Tests</h4>
-            <p className="text-xs text-gray-500">{assetTests.length} linked</p>
-          </div>
-          <Button size="sm" onClick={onCreateTest}>
-            New Test
-          </Button>
+        <div className="mb-4">
+          <h4 className="text-sm font-semibold text-gray-900">Tests</h4>
+          <p className="text-xs text-gray-500">
+            {completedResults.length} completed, {pendingTests.length} pending
+          </p>
         </div>
 
-        {assetTests.length === 0 ? (
-          <p className="text-sm text-gray-500">No tests linked yet.</p>
-        ) : (
-          <div className="space-y-3">
-            {assetTests.map(test => (
-              <div key={test.id} className="rounded-lg border border-gray-200 p-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-semibold text-gray-900">{test.name}</p>
-                    <p className="text-xs text-gray-500">
-                      {test.test_inputs ? `${test.test_inputs.length} inputs` : 'Inputs pending'}
-                    </p>
+        {/* Completed Tests Section */}
+        {completedResults.length > 0 && (
+          <div className="mb-4">
+            <h5 className="text-xs font-medium text-gray-700 mb-2">Completed Tests</h5>
+            <div className="space-y-2">
+              {completedResults.map(({ test, result }) => (
+                <div key={result.id} className="rounded-lg border border-green-200 bg-green-50 p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-semibold text-gray-900">{test.name}</p>
+                        <span className="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800">
+                          Completed
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-600 mt-1">
+                        Completed on {formatDate(result.submitted_at)}
+                      </p>
+                      {test.description && (
+                        <p className="text-xs text-gray-500 mt-1">{test.description}</p>
+                      )}
+                    </div>
                   </div>
-                  <button
-                    onClick={async () => {
-                      setUnlinkingId(test.id)
-                      try {
-                        await onUnlinkTest(test.id)
-                      } finally {
-                        setUnlinkingId(null)
-                      }
-                    }}
-                    className="text-xs text-red-600 hover:text-red-700"
-                    disabled={unlinkingId === test.id}
-                  >
-                    {unlinkingId === test.id ? 'Removing...' : 'Unlink'}
-                  </button>
                 </div>
-                {test.instructions && (
-                  <p className="mt-2 text-xs text-gray-600">
-                    {test.instructions}
-                  </p>
-                )}
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         )}
 
-        {unlinkedTests.length > 0 && (
-          <form
-            className="mt-4 space-y-2 rounded-lg bg-gray-50 p-3"
-            onSubmit={async (e) => {
-              e.preventDefault()
-              if (!selectedTestId) return
-              setLinking(true)
-              try {
-                await onLinkTest(selectedTestId)
-                setSelectedTestId('')
-              } finally {
-                setLinking(false)
-              }
-            }}
-          >
-            <label className="text-xs font-medium text-gray-700">
-              Link existing test
-            </label>
-            <div className="flex flex-col gap-2 md:flex-row">
-              <div className="flex-1">
-                <Select
-                  value={selectedTestId}
-                  options={[
-                    { value: '', label: 'Select a test' },
-                    ...unlinkedTests.map(test => ({
-                      value: test.id,
-                      label: test.name
-                    }))
-                  ]}
-                  onChange={setSelectedTestId}
-                />
-              </div>
-              <Button type="submit" size="sm" disabled={!selectedTestId || linking}>
-                {linking ? 'Linking...' : 'Link Test'}
-              </Button>
+        {/* Pending Tests Section */}
+        {pendingTests.length > 0 && (
+          <div>
+            <h5 className="text-xs font-medium text-gray-700 mb-2">
+              Pending Tests ({pendingTests.length})
+            </h5>
+            <div className="space-y-2">
+              {pendingTests.map(test => (
+                <div key={test.id} className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-semibold text-gray-900">{test.name}</p>
+                        <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
+                          Not Completed
+                        </span>
+                      </div>
+                      {test.description && (
+                        <p className="text-xs text-gray-500 mt-1">{test.description}</p>
+                      )}
+                      {test.test_inputs && test.test_inputs.length > 0 && (
+                        <p className="text-xs text-gray-500 mt-1">
+                          {test.test_inputs.length} input{test.test_inputs.length !== 1 ? 's' : ''} required
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
-          </form>
+          </div>
+        )}
+
+        {/* Empty State */}
+        {completedResults.length === 0 && pendingTests.length === 0 && (
+          <p className="text-sm text-gray-500">No tests available for this asset type.</p>
         )}
       </div>
     </div>

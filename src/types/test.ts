@@ -31,6 +31,7 @@ export interface TestResult {
   test_id: string
   job_id: string
   asset_id?: string | null
+  asset_ids?: string[] // Asset IDs from test_result_assets junction table
   responses: TestResultResponse[]
   status: TestResultStatus
   submitted_by: string
@@ -42,6 +43,7 @@ export interface Test {
   id: string
   job_id: string
   asset_id?: string | null
+  asset_type?: string | null
   name: string
   description?: string | null
   instructions?: string | null

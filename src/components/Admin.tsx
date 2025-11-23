@@ -9,6 +9,7 @@ import { useUserRole } from '../hooks/useUserRole'
 import { useUserManagement } from '../hooks/useUserManagement'
 import { useNotifications } from '../hooks/useNotifications'
 import { useTests } from '../hooks/useTests'
+import { ASSET_TYPE_CONFIGS } from '../types/asset'
 import { MESSAGES, ROUTES } from '../constants'
 import { formatDate, isExpired, isExpiringSoon } from '../utils/date'
 import { parseTags } from '../utils/strings'
@@ -751,12 +752,16 @@ const Admin: React.FC = () => {
                 <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                   <div>
                     <p className="text-base font-semibold text-gray-900">{test.name}</p>
-                    <p className="text-sm text-gray-500">
-                      Job: {jobLookup.get(test.job_id) || 'Unknown Job'}
-                    </p>
-                    <p className="text-sm text-gray-500">
-                      {test.asset_id ? 'Linked to asset' : 'Not linked to any asset'}
-                    </p>
+                    {test.asset_type && (
+                      <p className="text-sm text-gray-500">
+                        Asset Type: {ASSET_TYPE_CONFIGS[test.asset_type as keyof typeof ASSET_TYPE_CONFIGS]?.label || test.asset_type}
+                      </p>
+                    )}
+                    {!test.asset_type && (
+                      <p className="text-sm text-gray-500 italic">
+                        No asset type specified
+                      </p>
+                    )}
                   </div>
                   <div className="text-sm text-gray-500">
                     {test.test_inputs ? `${test.test_inputs.length} inputs defined` : 'No inputs'}
