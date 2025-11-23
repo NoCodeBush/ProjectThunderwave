@@ -9,6 +9,7 @@ import Banner from './Banner'
 import Button from './ui/Button'
 import Input from './ui/Input'
 import TextArea from './ui/TextArea'
+import Select from './ui/Select'
 import TestBuilderDrawer from './TestBuilderDrawer'
 import { Test } from '../types/test'
 
@@ -222,18 +223,17 @@ const AssetManagement: React.FC = () => {
                           {prop.unit && <span className="text-gray-500 ml-1">({prop.unit})</span>}
                         </label>
                         {prop.type === 'select' ? (
-                          <select
+                          <Select
                             value={properties[prop.key] || ''}
-                            onChange={(e) => handlePropertyChange(prop.key, e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                          >
-                            <option value="">Select {prop.label}</option>
-                            {prop.options?.map((option) => (
-                              <option key={option} value={option}>
-                                {option}
-                              </option>
-                            ))}
-                          </select>
+                            options={[
+                              { value: '', label: `Select ${prop.label}` },
+                              ...(prop.options?.map((option) => ({
+                                value: option,
+                                label: option
+                              })) || [])
+                            ]}
+                            onChange={(value) => handlePropertyChange(prop.key, value)}
+                          />
                         ) : prop.type === 'textarea' ? (
                           <TextArea
                             label=""
@@ -338,11 +338,8 @@ const AssetManagement: React.FC = () => {
           setIsTestDrawerOpen(false)
           setAssetForTest(null)
         }}
-        jobs={job ? [job] : []}
-        defaultJobId={job?.id}
-        defaultAssetId={assetForTest?.id}
-        defaultAssetLabel={assetForTest ? getAssetDisplayName(assetForTest) : undefined}
-        lockJob
+        defaultAssetId={assetForTest?.asset_type}
+        defaultAssetLabel={assetForTest ? ASSET_TYPE_CONFIGS[assetForTest.asset_type]?.label : undefined}
         lockAsset={Boolean(assetForTest)}
         onCreate={async (payload) => {
           try {
@@ -535,18 +532,19 @@ const AssetCard: React.FC<{
               Link existing test
             </label>
             <div className="flex flex-col gap-2 md:flex-row">
-              <select
-                className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                value={selectedTestId}
-                onChange={(e) => setSelectedTestId(e.target.value)}
-              >
-                <option value="">Select a test</option>
-                {unlinkedTests.map(test => (
-                  <option key={test.id} value={test.id}>
-                    {test.name}
-                  </option>
-                ))}
-              </select>
+              <div className="flex-1">
+                <Select
+                  value={selectedTestId}
+                  options={[
+                    { value: '', label: 'Select a test' },
+                    ...unlinkedTests.map(test => ({
+                      value: test.id,
+                      label: test.name
+                    }))
+                  ]}
+                  onChange={setSelectedTestId}
+                />
+              </div>
               <Button type="submit" size="sm" disabled={!selectedTestId || linking}>
                 {linking ? 'Linking...' : 'Link Test'}
               </Button>
@@ -558,12 +556,5 @@ const AssetCard: React.FC<{
   )
 }
 
-const getAssetDisplayName = (asset: Asset) => {
-  if (asset.make && asset.model) return `${asset.make} ${asset.model}`
-  if (asset.make) return asset.make
-  if (asset.model) return asset.model
-  const config = ASSET_TYPE_CONFIGS[asset.asset_type]
-  return config?.label || 'Asset'
-}
 
 export default AssetManagement

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../supabase/config'
 import { useCurrentTenantId } from './useCurrentTenantId'
 import { useAuth } from '../context/AuthContext'
+import { useAssets } from './useAssets'
 import { CreateTestPayload, SaveTestResultPayload, Test, TestResult } from '../types/test'
 
 interface UseTestsOptions {
@@ -10,10 +11,11 @@ interface UseTestsOptions {
   unlinkedOnly?: boolean
   includeInputs?: boolean
   includeResults?: boolean
+  includeJobAssetTypes?: boolean
 }
 
 export const useTests = (options: UseTestsOptions = {}) => {
-  const { jobId, assetId, unlinkedOnly = false, includeInputs = true, includeResults = true } = options
+  const { jobId, assetId, unlinkedOnly = false, includeInputs = true, includeResults = true, includeJobAssetTypes = false } = options
   const [tests, setTests] = useState<Test[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -48,8 +50,28 @@ export const useTests = (options: UseTestsOptions = {}) => {
         query = query.order('submitted_at', { ascending: false, foreignTable: 'test_results' })
       }
 
+      // Get asset types for the job if we need to include them
+      let jobAssetTypes: string[] = []
+      if (includeJobAssetTypes && jobId) {
+        const { data: jobAssets } = await supabase
+          .from('assets')
+          .select('asset_type')
+          .eq('job_id', jobId)
+
+        jobAssetTypes = (jobAssets || [])
+          .map(asset => asset.asset_type)
+          .filter(Boolean)
+      }
+
+      // Build the query filter
       if (jobId) {
-        query = query.eq('job_id', jobId)
+        if (includeJobAssetTypes && jobAssetTypes.length > 0) {
+          // Include tests that are either directly linked to the job OR match the job's asset types
+          query = query.or(`job_id.eq.${jobId},asset_type.in.(${jobAssetTypes.join(',')})`)
+        } else {
+          // Only include tests directly linked to the job
+          query = query.eq('job_id', jobId)
+        }
       }
 
       if (unlinkedOnly) {
@@ -118,11 +140,7 @@ export const useTests = (options: UseTestsOptions = {}) => {
   const createTest = async (payload: CreateTestPayload) => {
     if (!currentUser) throw new Error('User not authenticated')
 
-    const { inputs, name, description, instructions, jobId: payloadJobId, assetId: payloadAssetId } = payload
-
-    if (!payloadJobId) {
-      throw new Error('A job must be selected before creating a test')
-    }
+    const { inputs, name, description, instructions, jobId, assetType } = payload
 
     if (!inputs || inputs.length === 0) {
       throw new Error('At least one test input is required')
@@ -131,8 +149,8 @@ export const useTests = (options: UseTestsOptions = {}) => {
     const { data: testRecord, error: insertError } = await supabase
       .from('tests')
       .insert({
-        job_id: payloadJobId,
-        asset_id: payloadAssetId || null,
+        job_id: jobId || null,
+        asset_type: assetType || null,
         name,
         description: description || null,
         instructions: instructions || null,
@@ -224,14 +242,14 @@ export const useTests = (options: UseTestsOptions = {}) => {
   const saveTestResult = async (payload: SaveTestResultPayload) => {
     if (!currentUser) throw new Error('User not authenticated')
 
-    const { testId, jobId: payloadJobId, assetId: payloadAssetId, responses, status = 'submitted', resultId } = payload
+    const { testId, jobId: payloadJobId, assetIds, responses, status = 'submitted', resultId } = payload
 
     if (!testId) {
       throw new Error('A test must be specified before saving results')
     }
 
-    if (!payloadJobId) {
-      throw new Error('A job must be specified before saving results')
+    if (!assetIds || assetIds.length === 0) {
+      throw new Error('At least one asset must be specified before saving results')
     }
 
     if (!responses || responses.length === 0) {
@@ -241,7 +259,7 @@ export const useTests = (options: UseTestsOptions = {}) => {
     const baseData = {
       test_id: testId,
       job_id: payloadJobId,
-      asset_id: payloadAssetId || null,
+      asset_id: assetIds[0] || null, // Keep for backward compatibility, but we'll use the junction table
       responses,
       status,
       submitted_by: currentUser.id
@@ -279,6 +297,30 @@ export const useTests = (options: UseTestsOptions = {}) => {
       }
 
       result = data as TestResult
+    }
+
+    // Save asset relationships
+    if (result && assetIds.length > 0) {
+      // Delete existing asset relationships for this result
+      await supabase
+        .from('test_result_assets')
+        .delete()
+        .eq('test_result_id', result.id)
+
+      // Insert new asset relationships
+      const assetRelationships = assetIds.map(assetId => ({
+        test_result_id: result.id,
+        asset_id: assetId
+      }))
+
+      const { error: assetError } = await supabase
+        .from('test_result_assets')
+        .insert(assetRelationships)
+
+      if (assetError) {
+        console.error('Error saving test result asset relationships:', assetError)
+        throw assetError
+      }
     }
 
     await fetchTests()

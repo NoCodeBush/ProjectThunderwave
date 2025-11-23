@@ -14,7 +14,7 @@ const JobTests: React.FC = () => {
   const { jobId } = useParams<{ jobId: string }>()
   const navigate = useNavigate()
   const { jobs, loading: jobsLoading } = useJobs()
-  const { tests, loading: testsLoading, createTest, saveTestResult } = useTests({ jobId })
+  const { tests, loading: testsLoading, createTest, saveTestResult } = useTests({ jobId, includeJobAssetTypes: true })
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [onlyUnlinked, setOnlyUnlinked] = useState(false)
@@ -43,7 +43,8 @@ const JobTests: React.FC = () => {
   const handleSaveResults = async (
     responses: TestResultResponse[],
     existingResultId?: string,
-    status: TestResultStatus = 'submitted'
+    status: TestResultStatus = 'submitted',
+    selectedAssetIds?: string[]
   ) => {
     if (!activeTest) {
       throw new Error('Cannot save results without an active test.')
@@ -51,7 +52,8 @@ const JobTests: React.FC = () => {
 
     await saveTestResult({
       testId: activeTest.id,
-      jobId: activeTest.job_id,
+      jobId: activeTest.job_id || jobId,
+      assetIds: selectedAssetIds || [],
       assetId: activeTest.asset_id,
       responses,
       resultId: existingResultId,
@@ -235,9 +237,8 @@ const JobTests: React.FC = () => {
       <TestBuilderDrawer
         isOpen={isDrawerOpen}
         onClose={() => setIsDrawerOpen(false)}
-        jobs={[job]}
-        defaultJobId={job.id}
-        lockJob
+        defaultJobId={jobId}
+        lockJob={true}
         onCreate={async (payload) => {
           await createTest(payload)
           setIsDrawerOpen(false)
@@ -248,6 +249,7 @@ const JobTests: React.FC = () => {
         <TestResultDrawer
           isOpen={Boolean(activeTest)}
           test={activeTest}
+          jobId={jobId}
           onClose={() => setActiveTestId(null)}
           onSave={handleSaveResults}
         />
