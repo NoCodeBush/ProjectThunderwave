@@ -8,6 +8,7 @@ import Input from './ui/Input'
 import TextArea from './ui/TextArea'
 import Select from './ui/Select'
 import Button from './ui/Button'
+import TableInputBuilder from './table-input/TableInputBuilder'
 
 interface TestBuilderDrawerProps {
   isOpen: boolean
@@ -41,7 +42,8 @@ const expectedTypeOptions: { label: string; value: TestExpectedType; description
 const inputTypeOptions: { label: string; value: TestInputType }[] = [
   { label: 'Number', value: 'number' },
   { label: 'Text', value: 'text' },
-  { label: 'Yes / No', value: 'boolean' }
+  { label: 'Yes / No', value: 'boolean' },
+  { label: 'Table (Advanced)', value: 'table' }
 ]
 
 const TestBuilderDrawer: React.FC<TestBuilderDrawerProps> = ({
@@ -114,6 +116,28 @@ const TestBuilderDrawer: React.FC<TestBuilderDrawerProps> = ({
       if (!input.label.trim()) {
         setStatusMessage({ type: 'error', message: 'Each input must have a label.' })
         return false
+      }
+
+      // Skip validation for table inputs (handled separately)
+      if (input.inputType === 'table') {
+        if (!input.tableLayout) {
+          setStatusMessage({ type: 'error', message: 'Table inputs must have a table configuration.' })
+          return false
+        }
+        const enabledCells = input.tableLayout.cells.filter(cell => cell.enabled)
+        if (enabledCells.length === 0) {
+          setStatusMessage({ type: 'error', message: 'At least one cell must be enabled in the table.' })
+          return false
+        }
+        if (input.tableLayout.columns.length === 0) {
+          setStatusMessage({ type: 'error', message: 'At least one column is required for table inputs.' })
+          return false
+        }
+        if (input.tableLayout.rows.length === 0) {
+          setStatusMessage({ type: 'error', message: 'At least one row is required for table inputs.' })
+          return false
+        }
+        continue
       }
 
       // Skip expected value validation for boolean (yes/no) and text inputs
@@ -318,9 +342,36 @@ const TestBuilderDrawer: React.FC<TestBuilderDrawerProps> = ({
                       label="Input Type"
                       value={input.inputType}
                       options={inputTypeOptions}
-                      onChange={(value) => updateInput(index, { inputType: value as TestInputType })}
+                      onChange={(value) => {
+                        const newType = value as TestInputType
+                        if (newType === 'table') {
+                          // Initialize table layout if switching to table
+                          updateInput(index, {
+                            inputType: newType,
+                            tableLayout: input.tableLayout || {
+                              columns: ['L1', 'L2', 'L3'],
+                              rows: ['L1 CT', 'L2 CT', 'L3 CT'],
+                              cells: [],
+                              headerRows: []
+                            }
+                          })
+                        } else {
+                          updateInput(index, { inputType: newType, tableLayout: undefined })
+                        }
+                      }}
                     />
                   </div>
+
+                  {input.inputType === 'table' && (
+                    <div className="mt-4 rounded-xl border border-primary-200 bg-primary-50 p-4">
+                      <TableInputBuilder
+                        label={input.label}
+                        value={input.tableLayout}
+                        onChange={(config) => updateInput(index, { tableLayout: config })}
+                        onLabelChange={(newLabel) => updateInput(index, { label: newLabel })}
+                      />
+                    </div>
+                  )}
 
                   {input.inputType === 'number' && (
                     <>
@@ -372,14 +423,16 @@ const TestBuilderDrawer: React.FC<TestBuilderDrawerProps> = ({
                     </>
                   )}
 
-                  <TextArea
-                    label="Notes"
-                    rows={2}
-                    placeholder="Optional guidance for this input..."
-                    value={input.notes || ''}
-                    onChange={(e) => updateInput(index, { notes: e.target.value })}
-                    enablePlaceholderFill={true}
-                  />
+                  {input.inputType !== 'table' && (
+                    <TextArea
+                      label="Notes"
+                      rows={2}
+                      placeholder="Optional guidance for this input..."
+                      value={input.notes || ''}
+                      onChange={(e) => updateInput(index, { notes: e.target.value })}
+                      enablePlaceholderFill={true}
+                    />
+                  )}
                 </div>
               ))}
             </div>

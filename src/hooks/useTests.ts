@@ -118,16 +118,21 @@ export const useTests = (options: UseTestsOptions = {}) => {
         }
       }
 
-      const normalized = (data || []).map((row: any) => ({
-        ...row,
-        test_inputs: row.test_inputs
+      const normalized = (data || []).map((row: any) => {
+        // Parse table layouts from test inputs
+        const testInputs = row.test_inputs
           ? [...row.test_inputs].sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
-          : undefined,
-        test_results: (row.test_results || []).map((result: any) => ({
-          ...result,
-          asset_ids: assetAssociations[result.id] || []
-        }))
-      })) as Test[]
+          : undefined
+        
+        return {
+          ...row,
+          test_inputs: testInputs,
+          test_results: (row.test_results || []).map((result: any) => ({
+            ...result,
+            asset_ids: assetAssociations[result.id] || []
+          }))
+        } as Test
+      })
 
       setTests(normalized)
     } catch (err) {
@@ -206,18 +211,21 @@ export const useTests = (options: UseTestsOptions = {}) => {
     }
 
     if (inputs.length > 0) {
-      const formattedInputs = inputs.map((input, index) => ({
-        test_id: testRecord.id,
-        label: input.label,
-        input_type: input.inputType,
-        unit: input.unit || null,
-        position: index,
-        expected_type: input.expectedType,
-        expected_min: input.expectedMin ?? null,
-        expected_max: input.expectedMax ?? null,
-        expected_value: input.expectedValue ?? null,
-        notes: input.notes || null
-      }))
+      const formattedInputs = inputs.map((input, index) => {
+        return {
+          test_id: testRecord.id,
+          label: input.label,
+          input_type: input.inputType,
+          unit: input.unit || null,
+          position: index,
+          expected_type: input.expectedType,
+          expected_min: input.expectedMin ?? null,
+          expected_max: input.expectedMax ?? null,
+          expected_value: input.expectedValue ?? null,
+          notes: input.notes || null,
+          table_layout: input.inputType === 'table' && input.tableLayout ? input.tableLayout : null
+        }
+      })
 
       const { error: inputsError } = await supabase
         .from('test_inputs')

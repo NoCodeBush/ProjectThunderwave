@@ -1,8 +1,30 @@
-export type TestInputType = 'number' | 'text' | 'boolean'
+export type TestInputType = 'number' | 'text' | 'boolean' | 'table'
 
 export type TestExpectedType = 'range' | 'minimum' | 'maximum' | 'exact'
 
 export type TestResultStatus = 'draft' | 'submitted'
+
+export interface TableCellConfig {
+  rowIndex: number
+  columnIndex: number
+  enabled: boolean
+  inputType?: 'number' | 'text' | 'boolean'
+  label?: string
+  unit?: string
+  expectedType?: TestExpectedType
+  expectedMin?: number | null
+  expectedMax?: number | null
+  expectedValue?: number | null
+  notes?: string
+  isCheckbox?: boolean // For pass/fail checkboxes
+}
+
+export interface TableLayoutConfig {
+  columns: string[] // Column headers (e.g., ['L1', 'L2', 'L3'])
+  rows: string[] // Row labels (e.g., ['L1 CT', 'L2 CT', 'L3 CT'])
+  cells: TableCellConfig[] // Cell configurations
+  headerRows?: string[] // Optional header rows (e.g., ['Set Injection Unit output current (A):'])
+}
 
 export interface TestInput {
   id: string
@@ -16,14 +38,21 @@ export interface TestInput {
   expected_max?: number | null
   expected_value?: number | null
   notes?: string | null
+  table_layout?: TableLayoutConfig | null // Table configuration if input_type is 'table'
   created_at: string
   updated_at: string
+}
+
+export interface TableCellPosition {
+  rowIndex: number
+  columnIndex: number
 }
 
 export interface TestResultResponse {
   inputId: string
   value: number | string | boolean | null
-  notes?: string | null
+  notes?: string | null // For actual notes/comments
+  tableCellPosition?: TableCellPosition | null // For table input cell position data
 }
 
 export interface TestResult {
@@ -63,6 +92,7 @@ export interface TestInputDraft {
   expectedMax?: number | null
   expectedValue?: number | null
   notes?: string
+  tableLayout?: TableLayoutConfig // Table configuration if inputType is 'table'
 }
 
 export interface CreateTestPayload {

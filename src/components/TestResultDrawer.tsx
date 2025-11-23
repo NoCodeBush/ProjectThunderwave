@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { Test, TestInput, TestResult, TestResultResponse, TestResultStatus } from '../types/test'
+import { Test, TestInput, TestResult, TestResultResponse, TestResultStatus, TableCellConfig } from '../types/test'
 import { useAssets } from '../hooks/useAssets'
 import Button from './ui/Button'
 import Input from './ui/Input'
 import TextArea from './ui/TextArea'
+import TableInputRenderer from './table-input/TableInputRenderer'
 
 interface TestResultDrawerProps {
   isOpen: boolean
@@ -190,6 +191,20 @@ const ValidationIndicator: React.FC<{ status: ExpectationStatus }> = ({ status }
 const TestResultDrawer: React.FC<TestResultDrawerProps> = ({ isOpen, test, jobId, defaultAssetId, defaultResultId, onClose, onSave }) => {
   const inputs = useMemo(() => test.test_inputs || [], [test.test_inputs])
   
+  // Separate table inputs from regular inputs
+  const tableInputs = useMemo(() => {
+    return inputs.filter(input => input.input_type === 'table')
+  }, [inputs])
+  
+  const regularInputs = useMemo(() => {
+    return inputs.filter(input => !tableInputs.includes(input))
+  }, [inputs, tableInputs])
+  
+  // Helper to get table layout from an input
+  const getTableLayout = (input: TestInput) => {
+    return input.table_layout || null
+  }
+  
   // If defaultResultId is provided, use that specific result, otherwise use the latest
   const latestResult: TestResult | undefined = useMemo(() => {
     if (defaultResultId && test.test_results) {
@@ -228,11 +243,31 @@ const TestResultDrawer: React.FC<TestResultDrawerProps> = ({ isOpen, test, jobId
     const initialValues: Record<string, InputValueState> = {}
     if (latestResult?.responses) {
       latestResult.responses.forEach((response) => {
+        // Check if this is a table input cell response
+        if (response.tableCellPosition) {
+          const cellKey = `${response.inputId}_${response.tableCellPosition.rowIndex}_${response.tableCellPosition.columnIndex}`
+          initialValues[cellKey] = response.value as InputValueState
+          return
+        }
+        
+        // Regular input response
         initialValues[response.inputId] = response.value as InputValueState
       })
     } else {
+      // Initialize empty values for all inputs
       inputs.forEach((input) => {
-        if (input.input_type === 'boolean') {
+        if (input.input_type === 'table') {
+          // For table inputs, initialize cells based on table layout
+          const tableLayout = getTableLayout(input)
+          if (tableLayout) {
+            tableLayout.cells
+              .filter((cell: TableCellConfig) => cell.enabled)
+              .forEach((cell: TableCellConfig) => {
+                const cellKey = `${input.id}_${cell.rowIndex}_${cell.columnIndex}`
+                initialValues[cellKey] = cell.inputType === 'boolean' ? null : ''
+              })
+          }
+        } else if (input.input_type === 'boolean') {
           initialValues[input.id] = null
         } else {
           initialValues[input.id] = ''
@@ -283,7 +318,8 @@ const TestResultDrawer: React.FC<TestResultDrawerProps> = ({ isOpen, test, jobId
       newErrors.assets = 'Select at least one asset for this test'
     }
 
-    inputs.forEach((input) => {
+    // Validate regular inputs
+    regularInputs.forEach((input) => {
       const rawValue = values[input.id]
 
       if (input.input_type === 'number') {
@@ -306,37 +342,120 @@ const TestResultDrawer: React.FC<TestResultDrawerProps> = ({ isOpen, test, jobId
         }
       }
     })
+    
+    // Validate table inputs
+    tableInputs.forEach((tableInput) => {
+      const tableLayout = getTableLayout(tableInput)
+      if (!tableLayout) return
+      
+      tableLayout.cells
+        .filter((cell: TableCellConfig) => cell.enabled)
+        .forEach((cell: TableCellConfig) => {
+          const cellValueKey = `${tableInput.id}_${cell.rowIndex}_${cell.columnIndex}`
+          const rawValue = values[cellValueKey]
+          
+          if (cell.inputType === 'number') {
+            const asString = (rawValue ?? '').toString()
+            if (!asString.trim()) {
+              newErrors[cellValueKey] = 'Enter a value'
+              return
+            }
+            const parsed = Number(asString)
+            if (Number.isNaN(parsed)) {
+              newErrors[cellValueKey] = 'Enter a valid number'
+            }
+          } else if (cell.inputType === 'text') {
+            if (!rawValue || !(rawValue as string).trim()) {
+              newErrors[cellValueKey] = 'Enter a value'
+            }
+          } else if (cell.inputType === 'boolean') {
+            if (rawValue === null || rawValue === undefined) {
+              newErrors[cellValueKey] = 'Select Yes or No'
+            }
+          }
+        })
+    })
 
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
   }
 
   const buildResponses = (): TestResultResponse[] => {
-    return inputs.map((input) => {
+    const responses: TestResultResponse[] = []
+    
+    // Build responses for regular inputs
+    regularInputs.forEach((input) => {
       const rawValue = values[input.id]
 
       if (input.input_type === 'number') {
         const asString = rawValue?.toString() ?? ''
         const parsed = asString.trim() === '' ? null : Number(asString)
-        return {
+        responses.push({
           inputId: input.id,
           value: parsed
-        }
-      }
-
-      if (input.input_type === 'boolean') {
-        return {
+        })
+      } else if (input.input_type === 'boolean') {
+        responses.push({
           inputId: input.id,
           value: rawValue === null ? null : Boolean(rawValue)
-        }
-      }
-
-      const textValue = (rawValue as string) ?? ''
-      return {
-        inputId: input.id,
-        value: textValue.trim()
+        })
+      } else if (input.input_type === 'text') {
+        const textValue = (rawValue as string) ?? ''
+        responses.push({
+          inputId: input.id,
+          value: textValue.trim()
+        })
       }
     })
+    
+    // Build responses for table inputs
+    tableInputs.forEach((tableInput) => {
+      const tableLayout = getTableLayout(tableInput)
+      if (!tableLayout) return
+      
+      tableLayout.cells
+        .filter((cell: TableCellConfig) => cell.enabled)
+        .forEach((cell: TableCellConfig) => {
+          const cellValueKey = `${tableInput.id}_${cell.rowIndex}_${cell.columnIndex}`
+          const rawValue = values[cellValueKey]
+          
+          // For table cells, we need to create a synthetic input ID or store in notes
+          // For now, we'll store the cell data in a structured way
+          // Note: This might need adjustment based on how the backend expects table data
+          if (cell.inputType === 'number') {
+            const asString = rawValue?.toString() ?? ''
+            const parsed = asString.trim() === '' ? null : Number(asString)
+            responses.push({
+              inputId: tableInput.id, // Use the table input ID
+              value: parsed,
+              tableCellPosition: {
+                rowIndex: cell.rowIndex,
+                columnIndex: cell.columnIndex
+              }
+            })
+          } else if (cell.inputType === 'text') {
+            responses.push({
+              inputId: tableInput.id,
+              value: (rawValue as string) ?? null,
+              tableCellPosition: {
+                rowIndex: cell.rowIndex,
+                columnIndex: cell.columnIndex
+              }
+            })
+          } else if (cell.inputType === 'boolean') {
+            responses.push({
+              inputId: tableInput.id,
+              value: rawValue as boolean | null,
+              tableCellPosition: {
+                rowIndex: cell.rowIndex,
+                columnIndex: cell.columnIndex
+              }
+            })
+          }
+        })
+    })
+    
+    return responses
   }
 
   const handleSubmit = async () => {
@@ -505,7 +624,21 @@ const TestResultDrawer: React.FC<TestResultDrawerProps> = ({ isOpen, test, jobId
             </div>
           ) : (
             <div className="space-y-5">
-              {inputs.map((input) => {
+              {/* Render table inputs */}
+              {tableInputs.map((tableInput) => (
+                <TableInputRenderer
+                  key={tableInput.id}
+                  input={tableInput}
+                  values={values}
+                  responses={latestResult?.responses || []}
+                  onChange={updateValue}
+                  errors={errors}
+                  readOnly={false}
+                />
+              ))}
+              
+              {/* Render regular inputs */}
+              {regularInputs.map((input) => {
                 const expectationStatus = getExpectationStatus(input, values[input.id])
                 return (
                   <div key={input.id} className="rounded-xl border border-gray-200 p-4">
