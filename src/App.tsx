@@ -11,6 +11,7 @@ import JobDetails from './components/JobDetails'
 import AssetManagement from './components/AssetManagement'
 import JobTests from './components/JobTests'
 import ImageScan from './components/ImageScan'
+import OfflineBanner from './components/OfflineBanner'
 
 const PrivateRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { currentUser } = useAuth()
@@ -104,6 +105,7 @@ function App() {
     <Router>
       <TenantProvider>
         <AuthProvider>
+          <OfflineBanner />
           <AppRoutes />
         </AuthProvider>
       </TenantProvider>
