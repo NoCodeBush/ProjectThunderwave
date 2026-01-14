@@ -328,9 +328,10 @@ const TestResultDrawer: React.FC<TestResultDrawerProps> = ({ isOpen, test, jobId
           newErrors[input.id] = 'Enter a value'
           return
         }
-        const parsed = Number(asString)
-        if (Number.isNaN(parsed)) {
-          newErrors[input.id] = 'Enter a valid number'
+        // Allow numbers, <, >, and spaces
+        const cleanValue = asString.replace(/[<>]/g, '').trim()
+        if (cleanValue && Number.isNaN(Number(cleanValue))) {
+          newErrors[input.id] = 'Enter a valid number (may include < or > symbols)'
         }
       } else if (input.input_type === 'text') {
         if (!rawValue || !(rawValue as string).trim()) {
@@ -360,9 +361,10 @@ const TestResultDrawer: React.FC<TestResultDrawerProps> = ({ isOpen, test, jobId
               newErrors[cellValueKey] = 'Enter a value'
               return
             }
-            const parsed = Number(asString)
-            if (Number.isNaN(parsed)) {
-              newErrors[cellValueKey] = 'Enter a valid number'
+            // Allow numbers, <, >, and spaces
+            const cleanValue = asString.replace(/[<>]/g, '').trim()
+            if (cleanValue && Number.isNaN(Number(cleanValue))) {
+              newErrors[cellValueKey] = 'Enter a valid number (may include < or > symbols)'
             }
           } else if (cell.inputType === 'text') {
             if (!rawValue || !(rawValue as string).trim()) {
@@ -389,7 +391,18 @@ const TestResultDrawer: React.FC<TestResultDrawerProps> = ({ isOpen, test, jobId
 
       if (input.input_type === 'number') {
         const asString = rawValue?.toString() ?? ''
-        const parsed = asString.trim() === '' ? null : Number(asString)
+        let parsed: number | string | null = null
+        if (asString.trim()) {
+          // Check if it contains comparison operators
+          if (asString.includes('<') || asString.includes('>')) {
+            // Store as string to preserve the < > symbols
+            parsed = asString.trim()
+          } else {
+            // Store as number for regular numeric values
+            const numValue = Number(asString.trim())
+            parsed = Number.isNaN(numValue) ? asString.trim() : numValue
+          }
+        }
         responses.push({
           inputId: input.id,
           value: parsed
@@ -424,7 +437,18 @@ const TestResultDrawer: React.FC<TestResultDrawerProps> = ({ isOpen, test, jobId
           // Note: This might need adjustment based on how the backend expects table data
           if (cell.inputType === 'number') {
             const asString = rawValue?.toString() ?? ''
-            const parsed = asString.trim() === '' ? null : Number(asString)
+            let parsed: number | string | null = null
+            if (asString.trim()) {
+              // Check if it contains comparison operators
+              if (asString.includes('<') || asString.includes('>')) {
+                // Store as string to preserve the < > symbols
+                parsed = asString.trim()
+              } else {
+                // Store as number for regular numeric values
+                const numValue = Number(asString.trim())
+                parsed = Number.isNaN(numValue) ? asString.trim() : numValue
+              }
+            }
             responses.push({
               inputId: tableInput.id, // Use the table input ID
               value: parsed,
@@ -663,7 +687,7 @@ const TestResultDrawer: React.FC<TestResultDrawerProps> = ({ isOpen, test, jobId
                         <Input
                           label="Measurement"
                           id={`measurement-${input.id}`}
-                          type="number"
+                          type="text"
                           value={(values[input.id] as string) ?? ''}
                           onChange={(event) => updateValue(input.id, event.target.value)}
                           required

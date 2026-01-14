@@ -123,7 +123,7 @@ const TableInputRenderer: React.FC<TableInputRendererProps> = ({
                         {inputType === 'number' && (
                           <Input
                             label=""
-                            type="number"
+                            type="text"
                             value={(cellValue as string) ?? ''}
                             onChange={(e) => handleCellChange(rowIdx, colIdx, e.target.value)}
                             placeholder={cell.expectedValue?.toString()}

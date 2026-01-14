@@ -10,6 +10,7 @@ import { Asset, ASSET_TYPE_CONFIGS } from '../types/asset'
 import Button from './ui/Button'
 import Input from './ui/Input'
 import TestResultDrawer from './TestResultDrawer'
+import TestBuilderDrawer from './TestBuilderDrawer'
 
 interface TestInstance {
   test: Test
@@ -21,13 +22,45 @@ const JobTests: React.FC = () => {
   const { jobId } = useParams<{ jobId: string }>()
   const navigate = useNavigate()
   const { jobs, loading: jobsLoading } = useJobs()
-  const { tests, loading: testsLoading, saveTestResult } = useTests({ jobId, includeJobAssetTypes: true, includeResults: true })
+  const { tests, loading: testsLoading, saveTestResult, assignTestsToJob, createTest: createNewTest } = useTests({ jobId, includeJobAssetTypes: true, includeResults: true })
   const { assets, loading: assetsLoading } = useAssets(jobId)
   const [search, setSearch] = useState('')
   const [activeTestId, setActiveTestId] = useState<string | null>(null)
   const [activeAssetId, setActiveAssetId] = useState<string | null>(null)
+  const [isTestBuilderOpen, setIsTestBuilderOpen] = useState(false)
 
   const job = jobs.find(j => j.id === jobId)
+
+  // Auto-assign tests to job based on asset types if no job-specific tests exist
+  useEffect(() => {
+    const autoAssignTests = async () => {
+      if (!job || !assets || !tests || jobsLoading || testsLoading || assetsLoading || !jobId) return
+
+      const jobSpecificTests = tests.filter(test => test.job_id === jobId)
+      const hasJobSpecificTests = jobSpecificTests.length > 0
+
+      // If job has no specific tests but has assets, auto-assign matching tests
+      if (!hasJobSpecificTests && assets.length > 0) {
+        const assetTypes = [...new Set(assets.map(asset => asset.asset_type))]
+        const matchingTests = tests.filter(test =>
+          test.asset_type && assetTypes.includes(test.asset_type) && !test.job_id
+        )
+
+        // Auto-link matching tests to this job
+        if (matchingTests.length > 0) {
+          try {
+            const testIds = matchingTests.map(test => test.id)
+            await assignTestsToJob(testIds, jobId)
+            console.log(`Auto-assigned ${matchingTests.length} tests to job ${jobId}`)
+          } catch (error) {
+            console.error('Failed to auto-assign tests:', error)
+          }
+        }
+      }
+    }
+
+    autoAssignTests()
+  }, [job, assets, tests, jobId, jobsLoading, testsLoading, assetsLoading, assignTestsToJob])
 
   // Expand tests to show one per asset of that type
   const testInstances = useMemo(() => {
@@ -115,6 +148,19 @@ const JobTests: React.FC = () => {
     setActiveAssetId(null)
   }
 
+  const handleCreateTest = async (payload: any) => {
+    try {
+      await createNewTest({
+        ...payload,
+        jobId: jobId
+      })
+      setIsTestBuilderOpen(false)
+    } catch (error) {
+      console.error('Failed to create test:', error)
+      // Could add error handling UI here
+    }
+  }
+
   if (jobsLoading || testsLoading || assetsLoading) {
     return (
       <div className="min-h-screen bg-gray-50 safe-area-inset flex items-center justify-center">
@@ -169,6 +215,12 @@ const JobTests: React.FC = () => {
             <div className="flex items-center gap-3">
               <Button
                 variant="secondary"
+                onClick={() => setIsTestBuilderOpen(true)}
+              >
+                Create Test
+              </Button>
+              <Button
+                variant="secondary"
                 onClick={() => navigate(ROUTES.ASSET_MANAGEMENT.replace(':jobId', job.id))}
               >
                 Manage Assets
@@ -183,7 +235,7 @@ const JobTests: React.FC = () => {
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
               <h2 className="text-lg font-semibold text-gray-900">{testInstances.length} {testInstances.length === 1 ? 'Test Instance' : 'Test Instances'}</h2>
-              <p className="text-sm text-gray-600">Each test is shown once per asset of that type. Create tests in the Admin area.</p>
+              <p className="text-sm text-gray-600">Tests are automatically assigned based on asset types. You can also create custom tests for this job.</p>
             </div>
             <div className="flex flex-col gap-3 md:flex-row md:items-center">
               <Input
@@ -200,7 +252,7 @@ const JobTests: React.FC = () => {
             <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 p-6 text-center">
               <p className="text-sm text-gray-600">
                 {testInstances.length === 0
-                  ? 'No test instances available. Make sure you have assets and corresponding tests created in the Admin area.'
+                  ? 'No test instances available. Tests are automatically assigned based on your asset types. Add assets first, or create custom tests.'
                   : 'No test instances match your current filters.'}
               </p>
             </div>
@@ -211,7 +263,8 @@ const JobTests: React.FC = () => {
                 const latestResult = resultId ? test.test_results?.find(r => r.id === resultId) : undefined
                 const assetLabel = asset.make || asset.model ? `${asset.make || ''} ${asset.model || ''}`.trim() : ASSET_TYPE_CONFIGS[asset.asset_type]?.label || asset.asset_type
                 const assetDetails = asset.serial_number ? `Serial: ${asset.serial_number}` : asset.asset_type
-                
+                const isAutoAssigned = test.job_id === jobId // Tests assigned to this specific job
+
                 return (
                   <div
                     key={`${test.id}-${asset.id}`}
@@ -219,7 +272,14 @@ const JobTests: React.FC = () => {
                   >
                     <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                       <div>
-                        <p className="text-base font-semibold text-gray-900">{test.name}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="text-base font-semibold text-gray-900">{test.name}</p>
+                          {isAutoAssigned && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                              Auto-assigned
+                            </span>
+                          )}
+                        </div>
                         <p className="text-sm text-gray-700 mt-1">
                           Asset: {assetLabel}
                         </p>
@@ -291,6 +351,14 @@ const JobTests: React.FC = () => {
           onSave={handleSaveResults}
         />
       )}
+
+      <TestBuilderDrawer
+        isOpen={isTestBuilderOpen}
+        onClose={() => setIsTestBuilderOpen(false)}
+        onCreate={handleCreateTest}
+        defaultJobId={jobId}
+        lockJob={true}
+      />
     </div>
   )
 }
