@@ -209,16 +209,23 @@ const TestBuilderDrawer: React.FC<TestBuilderDrawerProps> = ({
       return
     }
 
-    // Allow < > symbols in expected values for documentation purposes
-    // Try to parse as number first, otherwise store as string
-    const cleanValue = value.replace(/[<>]/g, '').trim()
-    const parsed = Number(cleanValue)
+    // Check if value contains comparison operators
+    const hasComparisonOperators = /[<>≤≥]/.test(value)
 
-    if (!Number.isNaN(parsed)) {
+    if (hasComparisonOperators) {
+      // Store as string to preserve comparison operators
+      updateInput(index, { [field]: value } as any)
+      return
+    }
+
+    // Try to parse as number
+    const parsed = Number(value.trim())
+
+    if (!Number.isNaN(parsed) && value.trim() !== '') {
       // Store as number for validation purposes
       updateInput(index, { [field]: parsed } as Partial<TestInputDraft>)
     } else {
-      // Store as string to preserve < > symbols for display/documentation
+      // Store as string for non-numeric values without operators
       updateInput(index, { [field]: value } as any)
     }
   }
