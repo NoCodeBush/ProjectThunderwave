@@ -409,7 +409,7 @@ const TestBuilderDrawer: React.FC<TestBuilderDrawerProps> = ({
                         {(input.expectedType === 'range' || input.expectedType === 'minimum') && (
                           <Input
                             label="Minimum Value"
-                            type="number"
+                            type="text"
                             value={input.expectedMin ?? ''}
                             onChange={(e) => handleNumericChange(index, 'expectedMin', e.target.value)}
                           />
@@ -418,7 +418,7 @@ const TestBuilderDrawer: React.FC<TestBuilderDrawerProps> = ({
                         {(input.expectedType === 'range' || input.expectedType === 'maximum') && (
                           <Input
                             label="Maximum Value"
-                            type="number"
+                            type="text"
                             value={input.expectedMax ?? ''}
                             onChange={(e) => handleNumericChange(index, 'expectedMax', e.target.value)}
                           />
@@ -427,7 +427,7 @@ const TestBuilderDrawer: React.FC<TestBuilderDrawerProps> = ({
                         {input.expectedType === 'exact' && (
                           <Input
                             label="Expected Value"
-                            type="number"
+                            type="text"
                             value={input.expectedValue ?? ''}
                             onChange={(e) => handleNumericChange(index, 'expectedValue', e.target.value)}
                           />
