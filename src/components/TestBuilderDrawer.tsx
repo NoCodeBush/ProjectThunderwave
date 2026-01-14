@@ -209,9 +209,17 @@ const TestBuilderDrawer: React.FC<TestBuilderDrawerProps> = ({
       return
     }
 
-    const parsed = Number(value)
+    // Allow < > symbols in expected values for documentation purposes
+    // Try to parse as number first, otherwise store as string
+    const cleanValue = value.replace(/[<>]/g, '').trim()
+    const parsed = Number(cleanValue)
+
     if (!Number.isNaN(parsed)) {
+      // Store as number for validation purposes
       updateInput(index, { [field]: parsed } as Partial<TestInputDraft>)
+    } else {
+      // Store as string to preserve < > symbols for display/documentation
+      updateInput(index, { [field]: value } as any)
     }
   }
 

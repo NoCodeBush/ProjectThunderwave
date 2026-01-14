@@ -78,71 +78,118 @@ const getExpectationStatus = (input: TestInput, rawValue: InputValueState): Expe
     }
 
     const describeRange = () => {
-      const hasMin = typeof input.expected_min === 'number'
-      const hasMax = typeof input.expected_max === 'number'
-      if (hasMin && hasMax) {
+      const hasMinNumber = typeof input.expected_min === 'number'
+      const hasMaxNumber = typeof input.expected_max === 'number'
+      const hasMinString = typeof input.expected_min === 'string'
+      const hasMaxString = typeof input.expected_max === 'string'
+
+      if (hasMinNumber && hasMaxNumber) {
         return `Expected between ${formatValueWithUnit(input.expected_min!, input.unit)} and ${formatValueWithUnit(
           input.expected_max!,
           input.unit
         )}`
       }
-      if (hasMin) {
+      if (hasMinNumber) {
         return `Expected ≥ ${formatValueWithUnit(input.expected_min!, input.unit)}`
       }
-      if (hasMax) {
+      if (hasMaxNumber) {
         return `Expected ≤ ${formatValueWithUnit(input.expected_max!, input.unit)}`
+      }
+      if (hasMinString && hasMaxString) {
+        return `Expected between ${input.expected_min} and ${input.expected_max}${input.unit ? ` ${input.unit}` : ''}`
+      }
+      if (hasMinString) {
+        return `Expected ≥ ${input.expected_min}${input.unit ? ` ${input.unit}` : ''}`
+      }
+      if (hasMaxString) {
+        return `Expected ≤ ${input.expected_max}${input.unit ? ` ${input.unit}` : ''}`
       }
       return null
     }
 
     switch (input.expected_type) {
       case 'range': {
-        const hasMin = typeof input.expected_min === 'number'
-        const hasMax = typeof input.expected_max === 'number'
-        if (!hasMin && !hasMax) {
+        const hasMinNumber = typeof input.expected_min === 'number'
+        const hasMaxNumber = typeof input.expected_max === 'number'
+        const hasMinString = typeof input.expected_min === 'string'
+        const hasMaxString = typeof input.expected_max === 'string'
+
+        if (!hasMinNumber && !hasMaxNumber && !hasMinString && !hasMaxString) {
           return null
         }
-        const meetsMin = !hasMin || numericValue >= (input.expected_min as number)
-        const meetsMax = !hasMax || numericValue <= (input.expected_max as number)
+
+        // If both are strings, just show informational message
+        if ((hasMinString || hasMaxString) && !hasMinNumber && !hasMaxNumber) {
+          const minText = input.expected_min ? ` ≥ ${input.expected_min}` : ''
+          const maxText = input.expected_max ? ` ≤ ${input.expected_max}` : ''
+          return {
+            state: 'info',
+            message: `Expected range:${minText}${maxText}${input.unit ? ` ${input.unit}` : ''}`
+          }
+        }
+
+        // If we have numeric bounds, use them for validation
+        const meetsMin = !hasMinNumber || numericValue >= (input.expected_min as number)
+        const meetsMax = !hasMaxNumber || numericValue <= (input.expected_max as number)
         if (meetsMin && meetsMax) {
           return { state: 'pass', message: 'Within expected range' }
         }
         return { state: 'fail', message: describeRange() ?? 'Value is outside the expected range' }
       }
       case 'minimum': {
-        if (typeof input.expected_min !== 'number') {
-          return null
+        if (typeof input.expected_min === 'number') {
+          if (numericValue >= input.expected_min) {
+            return { state: 'pass', message: 'Meets minimum requirement' }
+          }
+          return {
+            state: 'fail',
+            message: `Expected ≥ ${formatValueWithUnit(input.expected_min, input.unit)}`
+          }
+        } else if (typeof input.expected_min === 'string') {
+          // For string expected values (with < > symbols), just show informational message
+          return {
+            state: 'info',
+            message: `Expected: ${input.expected_min}${input.unit ? ` ${input.unit}` : ''}`
+          }
         }
-        if (numericValue >= input.expected_min) {
-          return { state: 'pass', message: 'Meets minimum requirement' }
-        }
-        return {
-          state: 'fail',
-          message: `Expected ≥ ${formatValueWithUnit(input.expected_min, input.unit)}`
-        }
+        return null
       }
       case 'maximum': {
-        if (typeof input.expected_max !== 'number') {
-          return null
+        if (typeof input.expected_max === 'number') {
+          if (numericValue <= input.expected_max) {
+            return { state: 'pass', message: 'Meets maximum requirement' }
+          }
+          return {
+            state: 'fail',
+            message: `Expected ≤ ${formatValueWithUnit(input.expected_max, input.unit)}`
+          }
+        } else if (typeof input.expected_max === 'string') {
+          // For string expected values (with < > symbols), just show informational message
+          return {
+            state: 'info',
+            message: `Expected: ${input.expected_max}${input.unit ? ` ${input.unit}` : ''}`
+          }
         }
-        if (numericValue <= input.expected_max) {
-          return { state: 'pass', message: 'Meets maximum requirement' }
-        }
-        return {
-          state: 'fail',
-          message: `Expected ≤ ${formatValueWithUnit(input.expected_max, input.unit)}`
-        }
+        return null
       }
       case 'exact': {
-        if (typeof input.expected_value !== 'number') {
+        if (input.expected_value == null) {
           return null
         }
-        if (numericValue === input.expected_value) {
-          return { state: 'pass', message: 'Matches expected value' }
-        }
-        return {
-          state: 'fail',
-          message: `Expected ${formatValueWithUnit(input.expected_value, input.unit)}`
+        if (typeof input.expected_value === 'number') {
+          if (numericValue === input.expected_value) {
+            return { state: 'pass', message: 'Matches expected value' }
+          }
+          return {
+            state: 'fail',
+            message: `Expected ${formatValueWithUnit(input.expected_value, input.unit)}`
+          }
+        } else {
+          // For string expected values (with < > symbols), just show the expected value
+          return {
+            state: 'info',
+            message: `Expected: ${input.expected_value}${input.unit ? ` ${input.unit}` : ''}`
+          }
         }
       }
       default:
