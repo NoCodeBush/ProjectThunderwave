@@ -3,7 +3,7 @@
 export type AssetType =
 'ring_main_unit' |
 'protection_ct' |
-'emergency_stop' |      
+'emergency_stop' |
 'earth_vault_indicator' |
 'efi_ct' |
 'lv_cabinet' |
@@ -17,6 +17,8 @@ export type AssetType =
 'metering_vt' |
 'lv_metering_cts' |
 'battery_charger' |
+'substation' |
+'switchgear' |
 'other';
 
 export interface Asset {
@@ -794,6 +796,84 @@ export const ASSET_TYPE_CONFIGS: Record<AssetType, AssetTypeConfig> = {
         label: 'Settings',
         type: 'textarea',
         placeholder: 'Relay settings'
+      }
+    ]
+  },
+  substation: {
+    label: 'Substation',
+    icon: '🏗️',
+    properties: [
+      {
+        key: 'name',
+        label: 'Name',
+        type: 'text',
+        placeholder: 'Substation name'
+      },
+      {
+        key: 'type',
+        label: 'Type',
+        type: 'text',
+        placeholder: 'Substation type'
+      },
+      {
+        key: 'voltage_rating',
+        label: 'Voltage Rating',
+        type: 'text',
+        placeholder: 'Primary voltage rating'
+      },
+      {
+        key: 'location',
+        label: 'Location',
+        type: 'text',
+        placeholder: 'Physical location'
+      },
+      {
+        key: 'commissioning_date',
+        label: 'Commissioning Date',
+        type: 'text',
+        placeholder: 'Date commissioned'
+      }
+    ]
+  },
+  switchgear: {
+    label: 'Switchgear',
+    icon: '⚡',
+    properties: [
+      {
+        key: 'make',
+        label: 'Make',
+        type: 'text',
+        placeholder: 'Manufacturer'
+      },
+      {
+        key: 'type',
+        label: 'Type',
+        type: 'text',
+        placeholder: 'Switchgear type'
+      },
+      {
+        key: 'serial_no',
+        label: 'Serial No.',
+        type: 'text',
+        placeholder: 'Serial number'
+      },
+      {
+        key: 'voltage_rating',
+        label: 'Voltage Rating',
+        type: 'text',
+        placeholder: 'Rated voltage'
+      },
+      {
+        key: 'current_rating',
+        label: 'Current Rating',
+        type: 'text',
+        placeholder: 'Rated current'
+      },
+      {
+        key: 'year',
+        label: 'Year',
+        type: 'number',
+        placeholder: 'Year of manufacture'
       }
     ]
   },
