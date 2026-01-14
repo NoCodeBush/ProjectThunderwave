@@ -376,12 +376,17 @@ const TestBuilderDrawer: React.FC<TestBuilderDrawerProps> = ({
                   {input.inputType === 'number' && (
                     <>
                       <div className="grid gap-4 md:grid-cols-2">
-                        <Input
+                        <Select
                           label="Unit"
-                          placeholder="e.g., V, Ω, A"
                           value={input.unit || ''}
-                          onChange={(e) => updateInput(index, { unit: e.target.value })}
-                          enablePlaceholderFill={true}
+                          options={[
+                            { label: 'Volts (V)', value: 'V' },
+                            { label: 'Amperes (A)', value: 'A' },
+                            { label: 'Ohms (Ω)', value: 'Ω' },
+                            { label: 'Megaohms (MΩ)', value: 'MΩ' }
+                          ]}
+                          onChange={(value) => updateInput(index, { unit: value })}
+                          placeholder="Select unit..."
                         />
 
                         <Select
