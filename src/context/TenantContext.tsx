@@ -49,45 +49,39 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         if (queryError) {
           // If tenant doesn't exist (PGRST116 = no rows returned)
           if (queryError.code === 'PGRST116') {
-            // For localhost/127.0.0.1, try to create a default tenant
-            // This is a fallback if the migration hasn't been run yet
-            if (domain === 'localhost' || domain === '127.0.0.1') {
-              try {
-                const { data: newTenant, error: insertError } = await supabase
-                  .from('tenants')
-                  .insert({
-                    domain: domain,
-                    primary_color: '#3b82f6',
-                    logo_url: null
-                  })
-                  .select()
-                  .single()
+            // Create tenant using the normalized domain
+            try {
+              const { data: newTenant, error: insertError } = await supabase
+                .from('tenants')
+                .insert({
+                  domain: domain,
+                  primary_color: '#3b82f6',
+                  logo_url: null
+                })
+                .select()
+                .single()
 
-                if (insertError) {
-                  // If insert fails (e.g., no permission), use fallback tenant
-                  console.warn('Could not create tenant, using fallback:', insertError.message)
-                  setTenant({
-                    id: '',
-                    domain: domain,
-                    primary_color: '#3b82f6',
-                    logo_url: null
-                  })
-                } else {
-                  setTenant(newTenant as Tenant)
-                }
-              } catch (insertErr: any) {
-                // Use fallback tenant if creation fails
-                console.warn('Could not create tenant, using fallback:', insertErr.message)
+              if (insertError) {
+                // If insert fails (e.g., no permission), use fallback tenant
+                console.warn('Could not create tenant, using fallback:', insertError.message)
                 setTenant({
                   id: '',
                   domain: domain,
                   primary_color: '#3b82f6',
                   logo_url: null
                 })
+              } else {
+                setTenant(newTenant as Tenant)
               }
-            } else {
-              // For other domains, throw error
-              throw queryError
+            } catch (insertErr: any) {
+              // Use fallback tenant if creation fails
+              console.warn('Could not create tenant, using fallback:', insertErr.message)
+              setTenant({
+                id: '',
+                domain: domain,
+                primary_color: '#3b82f6',
+                logo_url: null
+              })
             }
           } else {
             throw queryError
