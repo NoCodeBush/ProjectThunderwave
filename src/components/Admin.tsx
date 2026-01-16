@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useTenant } from '../context/TenantContext'
@@ -25,8 +25,8 @@ const Admin: React.FC = () => {
   const navigate = useNavigate()
   const { logout, currentUser } = useAuth()
   const { tenant, updateTenant, loading: tenantLoading } = useTenant()
-  const { jobs, loading: jobsLoading, addJob } = useJobs()
-  const { equipment, addEquipment, deleteEquipment } = useTestEquipment()
+  const { jobs, loading: jobsLoading, addJob, updateJob, deleteJob } = useJobs()
+  const { equipment, loading: equipmentLoading, addEquipment, deleteEquipment } = useTestEquipment()
   const { users, loading: usersLoading, refreshUsers } = useUsers()
   const { isAdministrator } = useUserRole()
   const { updateUserRole, loading: userManagementLoading } = useUserManagement()
@@ -37,6 +37,12 @@ const Admin: React.FC = () => {
     createTest: createNewTest,
     deleteTest
   } = useTests()
+
+  console.log('🔧 Admin component - equipment state:', { 
+    equipment, 
+    equipmentCount: equipment.length,
+    equipmentLoading 
+  })
 
   // Job form state
   const [jobForm, setJobForm] = useState({
@@ -55,13 +61,16 @@ const Admin: React.FC = () => {
   const [equipmentForm, setEquipmentForm] = useState({
     name: '',
     serialNumber: '',
-    dateTest: ''
+    dateTest: '',
+    userId: ''
   })
 
-  const [activeTab, setActiveTab] = useState<'jobs' | 'equipment' | 'branding' | 'users' | 'tests'>('jobs')
+  const [activeTab, setActiveTab] = useState<'jobs' | 'jobManagement' | 'equipment' | 'branding' | 'users' | 'tests'>('jobs')
   const [banner, setBanner] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
   const [isTestDrawerOpen, setIsTestDrawerOpen] = useState(false)
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false)
+  const [editingJob, setEditingJob] = useState<any>(null)
+  const [equipmentUserFilter, setEquipmentUserFilter] = useState<string>('') // Empty string = all users
   
   // Branding form state
   const [brandingForm, setBrandingForm] = useState({
@@ -79,12 +88,6 @@ const Admin: React.FC = () => {
     }
   }, [tenant])
 
-  const jobLookup = useMemo(() => {
-    const map = new Map<string, string>()
-    jobs.forEach(job => map.set(job.id, job.name))
-    return map
-  }, [jobs])
-
   const handleJobSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     const tags = parseTags(jobForm.tags)
@@ -98,6 +101,8 @@ const Admin: React.FC = () => {
           location: jobForm.location,
           tags,
           details: jobForm.details,
+          site_contact: jobForm.site_contact,
+          site_phone_number: jobForm.site_phone_number,
         },
         jobForm.assignedUserIds
       )
@@ -122,16 +127,60 @@ const Admin: React.FC = () => {
     }
   }
 
-  const handleEquipmentSubmit = (e: React.FormEvent) => {
+  const handleJobUpdate = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editingJob) return
+
+    try {
+      await updateJob(editingJob.id, {
+        name: editingJob.name,
+        client: editingJob.client,
+        date: editingJob.date,
+        location: editingJob.location,
+        tags: editingJob.tags,
+        details: editingJob.details,
+        site_contact: editingJob.site_contact,
+        site_phone_number: editingJob.site_phone_number,
+      })
+
+      setEditingJob(null)
+      setBanner({ message: 'Job updated successfully!', type: 'success' })
+    } catch (error) {
+      setBanner({ message: 'Failed to update job.', type: 'error' })
+      console.error('Error updating job:', error)
+    }
+  }
+
+  const handleDeleteJob = async (jobId: string) => {
+    if (!window.confirm('Are you sure you want to delete this job? This action cannot be undone.')) {
+      return
+    }
+
+    try {
+      await deleteJob(jobId)
+      setBanner({ message: 'Job deleted successfully!', type: 'success' })
+    } catch (error) {
+      setBanner({ message: 'Failed to delete job.', type: 'error' })
+      console.error('Error deleting job:', error)
+    }
+  }
+
+  const handleEquipmentSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
-      addEquipment(equipmentForm.name, equipmentForm.serialNumber, equipmentForm.dateTest)
+      await addEquipment(
+        equipmentForm.name,
+        equipmentForm.serialNumber,
+        equipmentForm.dateTest,
+        equipmentForm.userId
+      )
 
       // Reset form
       setEquipmentForm({
         name: '',
         serialNumber: '',
-        dateTest: ''
+        dateTest: '',
+        userId: ''
       })
 
       setBanner({ message: MESSAGES.EQUIPMENT_ADDED, type: 'success' })
@@ -217,6 +266,7 @@ const Admin: React.FC = () => {
                 <div>
                   <h2 className="text-lg font-semibold text-gray-900">
                     {activeTab === 'jobs' && 'Add Job'}
+                    {activeTab === 'jobManagement' && 'Manage Jobs'}
                     {activeTab === 'equipment' && 'Test Equipment'}
                     {activeTab === 'tests' && 'Tests'}
                     {activeTab === 'branding' && 'Branding'}
@@ -247,6 +297,16 @@ const Admin: React.FC = () => {
               }`}
             >
               Add Job
+            </button>
+            <button
+              onClick={() => setActiveTab('jobManagement')}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === 'jobManagement'
+                  ? 'border-primary-500 text-primary-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              Manage Jobs
             </button>
             <button
               onClick={() => setActiveTab('equipment')}
@@ -336,6 +396,33 @@ const Admin: React.FC = () => {
                       <p className="text-sm text-gray-500">Create new job assignments</p>
                     </div>
                     {activeTab === 'jobs' && (
+                      <div className="ml-auto w-2 h-2 bg-primary-500 rounded-full"></div>
+                    )}
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setActiveTab('jobManagement')
+                      setIsMobileNavOpen(false)
+                    }}
+                    className={`w-full flex items-center gap-4 p-4 rounded-xl transition-all ${
+                      activeTab === 'jobManagement'
+                        ? 'bg-primary-50 border-2 border-primary-200'
+                        : 'hover:bg-gray-50'
+                    }`}
+                  >
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                      activeTab === 'jobManagement' ? 'bg-primary-500' : 'bg-gray-100'
+                    }`}>
+                      <svg className={`w-5 h-5 ${activeTab === 'jobManagement' ? 'text-white' : 'text-gray-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                      </svg>
+                    </div>
+                    <div className="text-left">
+                      <p className={`font-medium ${activeTab === 'jobManagement' ? 'text-primary-900' : 'text-gray-900'}`}>Manage Jobs</p>
+                      <p className="text-sm text-gray-500">Edit and delete existing jobs</p>
+                    </div>
+                    {activeTab === 'jobManagement' && (
                       <div className="ml-auto w-2 h-2 bg-primary-500 rounded-full"></div>
                     )}
                   </button>
@@ -602,6 +689,212 @@ const Admin: React.FC = () => {
           </div>
         )}
 
+        {/* Job Management */}
+        {activeTab === 'jobManagement' && (
+          <div className="space-y-6">
+            {/* Edit Job Form */}
+            {editingJob && (
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-lg font-semibold text-gray-900">Edit Job</h2>
+                  <button
+                    onClick={() => setEditingJob(null)}
+                    className="text-gray-400 hover:text-gray-600 p-2"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+                <form onSubmit={handleJobUpdate} className="space-y-4">
+                  <Input
+                    label="Job Name"
+                    type="text"
+                    required
+                    value={editingJob.name}
+                    onChange={(e) => setEditingJob({ ...editingJob, name: e.target.value })}
+                    placeholder="e.g., Metering and Stop Button"
+                    enablePlaceholderFill={true}
+                  />
+
+                  <Input
+                    label="Client"
+                    type="text"
+                    required
+                    value={editingJob.client}
+                    onChange={(e) => setEditingJob({ ...editingJob, client: e.target.value })}
+                    placeholder="Power Up"
+                    enablePlaceholderFill={true}
+                  />
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <Input
+                      label="Date"
+                      type="date"
+                      required
+                      value={editingJob.date}
+                      onChange={(e) => setEditingJob({ ...editingJob, date: e.target.value })}
+                    />
+
+                    <Input
+                      label="Location"
+                      type="text"
+                      required
+                      value={editingJob.location}
+                      onChange={(e) => setEditingJob({ ...editingJob, location: e.target.value })}
+                      placeholder="Zander Way, Bedford, MK47 34D"
+                      enablePlaceholderFill={true}
+                    />
+                  </div>
+
+                  <Input
+                    label="Tags (comma-separated)"
+                    type="text"
+                    value={editingJob.tags?.join(', ') || ''}
+                    onChange={(e) => setEditingJob({ ...editingJob, tags: e.target.value.split(',').map(t => t.trim()).filter(t => t) })}
+                    placeholder="Re-test, Metering, Stop Button, etc."
+                    hint={MESSAGES.TAGS_HINT}
+                    enablePlaceholderFill={true}
+                  />
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Input
+                      label="Site Contact"
+                      type="text"
+                      value={editingJob.site_contact || ''}
+                      onChange={(e) => setEditingJob({ ...editingJob, site_contact: e.target.value })}
+                      placeholder="John Smith"
+                      enablePlaceholderFill={true}
+                    />
+
+                    <Input
+                      label="Site Phone Number"
+                      type="tel"
+                      value={editingJob.site_phone_number || ''}
+                      onChange={(e) => setEditingJob({ ...editingJob, site_phone_number: e.target.value })}
+                      placeholder="+44 1234 567890"
+                      enablePlaceholderFill={true}
+                    />
+                  </div>
+
+                  <TextArea
+                    label="Details"
+                    required
+                    rows={4}
+                    value={editingJob.details}
+                    onChange={(e) => setEditingJob({ ...editingJob, details: e.target.value })}
+                    placeholder="Enter job details..."
+                    enablePlaceholderFill={true}
+                  />
+
+                  <div className="flex items-center gap-3 pt-4">
+                    <button
+                      type="submit"
+                      className="px-6 py-2.5 bg-primary-500 text-white font-medium rounded-lg hover:bg-primary-600 active:scale-95 transition-all focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+                    >
+                      Update Job
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditingJob(null)}
+                      className="px-6 py-2.5 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition-all"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
+
+            {/* Jobs List */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">Jobs List</h2>
+              {jobsLoading ? (
+                <div className="text-center py-8 text-gray-500">
+                  <p>Loading jobs...</p>
+                </div>
+              ) : jobs.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  <p>No jobs found.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {jobs.map((job) => (
+                    <div
+                      key={job.id}
+                      className="p-4 rounded-lg border border-gray-200 bg-gray-50"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-2">
+                            <h3 className="font-semibold text-gray-900">{job.name}</h3>
+                            <span className="px-2 py-0.5 bg-blue-100 text-blue-800 text-xs font-medium rounded-full">
+                              {job.client}
+                            </span>
+                          </div>
+                          <div className="space-y-1 text-sm text-gray-600">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">Date:</span>
+                              <span>{formatDate(job.date)}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">Location:</span>
+                              <span>{job.location}</span>
+                            </div>
+                            {job.tags && job.tags.length > 0 && (
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium">Tags:</span>
+                                <span>{job.tags.join(', ')}</span>
+                              </div>
+                            )}
+                            {job.site_contact && (
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium">Contact:</span>
+                                <span>{job.site_contact}</span>
+                              </div>
+                            )}
+                            {job.assignedUsers && job.assignedUsers.length > 0 && (
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium">Assigned:</span>
+                                <span>{job.assignedUsers.length} user{job.assignedUsers.length !== 1 ? 's' : ''}</span>
+                              </div>
+                            )}
+                          </div>
+                          {job.details && (
+                            <p className="mt-2 text-sm text-gray-600 line-clamp-2">
+                              {job.details}
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <button
+                            onClick={() => setEditingJob(job)}
+                            className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                            aria-label="Edit job"
+                          >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                          </button>
+                          <button
+                            onClick={() => handleDeleteJob(job.id)}
+                            className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                            aria-label="Delete job"
+                          >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Test Equipment Form and List */}
         {activeTab === 'equipment' && (
           <div className="space-y-6">
@@ -647,6 +940,23 @@ const Admin: React.FC = () => {
                   hint={MESSAGES.EXPIRY_HINT}
                 />
 
+                <Select
+                  label="Assign to User"
+                  value={equipmentForm.userId}
+                  options={[
+                    { value: '', label: usersLoading ? 'Loading users...' : 'Select a user' },
+                    ...(users || []).map((user) => ({
+                      value: user.id,
+                      label: user.displayName || user.email
+                    }))
+                  ]}
+                  onChange={(value) =>
+                    setEquipmentForm({ ...equipmentForm, userId: value })
+                  }
+                  disabled={usersLoading || !users || users.length === 0}
+                  required
+                />
+
                 <Button type="submit" fullWidth className="sm:w-auto">
                   {MESSAGES.ADD_EQUIPMENT}
                 </Button>
@@ -655,14 +965,39 @@ const Admin: React.FC = () => {
 
             {/* Equipment List */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Test Equipment List</h2>
-              {equipment.length === 0 ? (
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold text-gray-900">Test Equipment List</h2>
+                {!equipmentLoading && equipment.length > 0 && (
+                  <div className="w-64">
+                    <Select
+                      label=""
+                      placeholder="Filter by user"
+                      value={equipmentUserFilter}
+                      options={[
+                        { value: '', label: 'All Users' },
+                        ...(users || []).map((user) => ({
+                          value: user.id,
+                          label: user.displayName || user.email
+                        }))
+                      ]}
+                      onChange={(value) => setEquipmentUserFilter(value)}
+                    />
+                  </div>
+                )}
+              </div>
+              {equipmentLoading ? (
+                <div className="text-center py-8 text-gray-500">
+                  <p>Loading equipment...</p>
+                </div>
+              ) : equipment.length === 0 ? (
                 <div className="text-center py-8 text-gray-500">
                   <p>{MESSAGES.NO_EQUIPMENT}</p>
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {equipment.map((item) => {
+                  {equipment
+                    .filter((item) => !equipmentUserFilter || item.userId === equipmentUserFilter)
+                    .map((item) => {
                     const expired = isExpired(item.expiry)
                     const expiringSoon = isExpiringSoon(item.expiry)
                     return (
@@ -693,6 +1028,10 @@ const Admin: React.FC = () => {
                             </div>
                             <p className="text-sm text-gray-600 mb-2">Serial: {item.serialNumber}</p>
                             <div className="space-y-1 text-sm text-gray-600">
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium">Assigned to:</span>
+                                <span>{item.assignedUserName || 'Unknown User'}</span>
+                              </div>
                               <div className="flex items-center gap-2">
                                 <span className="font-medium">Test Date:</span>
                                 <span>{formatDate(item.dateTest)}</span>

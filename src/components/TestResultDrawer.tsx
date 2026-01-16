@@ -41,7 +41,7 @@ const getExpectedValuePlaceholder = (input: TestInput): string | undefined => {
 }
 
 type ExpectationStatus = {
-  state: 'pass' | 'fail'
+  state: 'pass' | 'fail' | 'info'
   message: string
 }
 
@@ -84,16 +84,16 @@ const getExpectationStatus = (input: TestInput, rawValue: InputValueState): Expe
       const hasMaxString = typeof input.expected_max === 'string'
 
       if (hasMinNumber && hasMaxNumber) {
-        return `Expected between ${formatValueWithUnit(input.expected_min!, input.unit)} and ${formatValueWithUnit(
-          input.expected_max!,
+        return `Expected between ${formatValueWithUnit(input.expected_min as number, input.unit)} and ${formatValueWithUnit(
+          input.expected_max as number,
           input.unit
         )}`
       }
       if (hasMinNumber) {
-        return `Expected ≥ ${formatValueWithUnit(input.expected_min!, input.unit)}`
+        return `Expected ≥ ${formatValueWithUnit(input.expected_min as number, input.unit)}`
       }
       if (hasMaxNumber) {
-        return `Expected ≤ ${formatValueWithUnit(input.expected_max!, input.unit)}`
+        return `Expected ≤ ${formatValueWithUnit(input.expected_max as number, input.unit)}`
       }
       if (hasMinString && hasMaxString) {
         return `Expected between ${input.expected_min} and ${input.expected_max}${input.unit ? ` ${input.unit}` : ''}`

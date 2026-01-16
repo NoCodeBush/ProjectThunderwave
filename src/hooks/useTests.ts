@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../supabase/config'
 import { useCurrentTenantId } from './useCurrentTenantId'
 import { useAuth } from '../context/AuthContext'
-import { useAssets } from './useAssets'
 import { CreateTestPayload, SaveTestResultPayload, Test, TestResult } from '../types/test'
 
 interface UseTestsOptions {

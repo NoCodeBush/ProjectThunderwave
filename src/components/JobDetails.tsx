@@ -42,6 +42,14 @@ const JobDetails: React.FC = () => {
 
   const isAssignedToCurrentUser = job.assignedUsers?.some(user => user.id === currentUser?.id)
 
+  console.log('🔍 JobDetails: Job assignment check:', {
+    jobId: job.id,
+    jobName: job.name,
+    currentUserId: currentUser?.id,
+    assignedUsers: job.assignedUsers?.map(u => ({ id: u.id, name: u.displayName || u.email })),
+    isAssignedToCurrentUser
+  })
+
   const handleSelfAssignment = async () => {
     if (!currentUser || !jobId) return
 

@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
-import { Job } from '../types/job'
 import { supabase } from '../supabase/config'
 import { useAuth } from '../context/AuthContext'
 import { useCurrentTenantId } from './useCurrentTenantId'
+import { Job } from '../types/job'
 
 export const useJobs = () => {
   const [jobs, setJobs] = useState<Job[]>([])
@@ -12,6 +12,7 @@ export const useJobs = () => {
 
   useEffect(() => {
     if (!currentUser || !tenantId) {
+      console.log('🔍 useJobs: Missing user or tenant, skipping load')
       setJobs([])
       setLoading(false)
       return
@@ -31,6 +32,7 @@ export const useJobs = () => {
           filter: `user_id=eq.${currentUser.id}&tenant_id=eq.${tenantId}`
         },
         () => {
+          console.log('🔍 useJobs: Jobs changed, reloading')
           loadJobs()
         }
       )
@@ -48,6 +50,7 @@ export const useJobs = () => {
           filter: `user_id=eq.${currentUser.id}`
         },
         () => {
+          console.log('🔍 useJobs: Assignments changed, reloading')
           loadJobs()
         }
       )
@@ -62,127 +65,124 @@ export const useJobs = () => {
   const loadJobs = async () => {
     try {
       setLoading(true)
+      console.log('🔍 useJobs: Starting to load jobs for user:', currentUser?.id, 'tenant:', tenantId)
 
-        // Get jobs owned by the user
-        const { data: ownedJobs, error: ownedJobsError } = await supabase
-          .from('jobs')
-          .select('*')
-          .eq('user_id', currentUser?.id)
-          .eq('tenant_id', tenantId)
+      // Get all jobs with assignments in one query
+      // RLS policies will return all jobs in the tenant
+      // We filter to show only jobs the user owns or is assigned to
+      const { data: jobsWithAssignments, error } = await supabase
+        .from('jobs')
+        .select(`
+          *,
+          job_assignments (
+            user_id
+          )
+        `)
+        .eq('tenant_id', tenantId)
+        .order('date', { ascending: false })
 
-        if (ownedJobsError) throw ownedJobsError
+      if (error) {
+        console.error('🔍 useJobs: Error loading jobs:', error)
+        throw error
+      }
 
-        // Get jobs assigned to the user (but not owned by them)
-        const { data: assignedJobsData, error: assignedJobsError } = await supabase
-          .from('job_assignments')
-          .select(`
-            job_id,
-            jobs!inner (
-              id,
-              name,
-              client,
-              date,
-              location,
-              tags,
-              details,
-              site_contact,
-              site_phone_number,
-              user_id,
-              tenant_id,
-              created_at,
-              updated_at
-            )
-          `)
-          .eq('user_id', currentUser?.id)
-          .eq('jobs.tenant_id', tenantId)
+      console.log('🔍 useJobs: Raw data received:', jobsWithAssignments?.length || 0, 'jobs')
 
-        if (assignedJobsError) throw assignedJobsError
+      if (!jobsWithAssignments || jobsWithAssignments.length === 0) {
+        console.log('🔍 useJobs: No jobs found')
+        setJobs([])
+        return
+      }
 
-        // Extract assigned jobs (avoiding duplicates with owned jobs)
-        const assignedJobs = (assignedJobsData || [])
-          .map((item: any) => item.jobs)
-          .filter((job: any) => !ownedJobs?.some((owned: any) => owned.id === job.id))
+      // Filter to only include jobs where:
+      // 1. The user is the owner (user_id matches), OR
+      // 2. The user is assigned to the job (exists in job_assignments)
+      const userJobs = jobsWithAssignments.filter((row: any) => {
+        const isOwner = row.user_id === currentUser?.id
+        const isAssigned = (row.job_assignments || []).some((assignment: any) => 
+          assignment.user_id === currentUser?.id
+        )
+        return isOwner || isAssigned
+      })
 
-        // Combine owned and assigned jobs
-        const allJobs = [...(ownedJobs || []), ...(assignedJobs || [])]
-          .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      console.log('🔍 useJobs: After filtering:', userJobs.length, 'jobs (out of', jobsWithAssignments.length, 'total)')
 
-        // Load assignments for all jobs
-        const jobIds = allJobs.map((job: any) => job.id)
-        let assignments: any[] = []
-        let userProfiles: Map<string, any> = new Map()
+      // Transform to Job format with assignedUsers
+      const transformedJobs: Job[] = userJobs.map((row: any) => {
+        const assignments = (row.job_assignments || []).map((assignment: any) => ({
+          id: assignment.user_id,
+          email: '', // Will be populated below
+          displayName: undefined
+        }))
 
-        if (jobIds.length > 0) {
-          // Get all assignments
-          const { data: assignmentsData, error: assignmentsError } = await supabase
-            .from('job_assignments')
-            .select('job_id, user_id')
-            .in('job_id', jobIds)
-
-          if (!assignmentsError && assignmentsData) {
-            assignments = assignmentsData
-
-            // Get unique user IDs
-            const userIds = [...new Set(assignments.map((a: any) => a.user_id))]
-
-            // Fetch user profiles
-            if (userIds.length > 0) {
-              const { data: profilesData, error: profilesError } = await supabase
-                .from('user_profiles')
-                .select('id, email, display_name')
-                .in('id', userIds)
-
-              if (!profilesError && profilesData) {
-                profilesData.forEach((profile: any) => {
-                  userProfiles.set(profile.id, profile)
-                })
-              }
-            }
-          }
+        return {
+          id: row.id,
+          name: row.name,
+          client: row.client,
+          date: row.date,
+          location: row.location,
+          tags: row.tags || [],
+          details: row.details,
+          site_contact: row.site_contact,
+          site_phone_number: row.site_phone_number,
+          assignedUsers: assignments.length > 0 ? assignments : undefined
         }
+      })
 
-        console.log('🔍 Jobs loaded:', {
-          ownedJobs: (ownedJobs || []).length,
-          assignedJobs: (assignedJobs || []).length,
-          totalJobs: allJobs.length,
-          jobs: allJobs.map(j => ({ id: j.id, name: j.name, assignments: assignments.filter(a => a.job_id === j.id).length }))
+      console.log('🔍 useJobs: After transformation:', transformedJobs.length, 'jobs')
+
+      // Load user profiles for assigned users
+      const userIds: string[] = []
+      transformedJobs.forEach(job => {
+        job.assignedUsers?.forEach(user => {
+          if (!userIds.includes(user.id)) {
+            userIds.push(user.id)
+          }
         })
+      })
 
-        // Transform database format to Job format
-        const transformedJobs: Job[] = allJobs.map((row: any) => {
-          const jobAssignments = assignments
-            .filter((a: any) => a.job_id === row.id)
-            .map((a: any) => {
-              const profile = userProfiles.get(a.user_id)
-              return {
-                id: a.user_id,
-                email: profile?.email || '',
-                displayName: profile?.display_name || undefined
+      console.log('🔍 useJobs: Loading profiles for users:', userIds)
+
+      if (userIds.length > 0) {
+        const { data: profiles, error: profileError } = await supabase
+          .from('user_profiles')
+          .select('id, email, display_name')
+          .in('id', userIds)
+
+        if (profileError) {
+          console.warn('🔍 useJobs: Error loading profiles:', profileError)
+        } else if (profiles) {
+          console.log('🔍 useJobs: Loaded', profiles.length, 'profiles')
+          const profileMap = new Map(profiles.map(p => [p.id, p]))
+
+          transformedJobs.forEach(job => {
+            job.assignedUsers?.forEach(user => {
+              const profile = profileMap.get(user.id)
+              if (profile) {
+                user.email = profile.email
+                user.displayName = profile.display_name
               }
             })
-
-          return {
-            id: row.id,
-            name: row.name,
-            client: row.client,
-            date: row.date,
-            location: row.location,
-            tags: row.tags || [],
-            details: row.details,
-            site_contact: row.site_contact,
-            site_phone_number: row.site_phone_number,
-            assignedUsers: jobAssignments.length > 0 ? jobAssignments : undefined
-          }
-        })
-
-        setJobs(transformedJobs)
-      } catch (error) {
-        console.error('Error loading jobs:', error)
-      } finally {
-        setLoading(false)
+          })
+        }
       }
-    }
 
+      // Sort by date (newest first)
+      const sortedJobs = transformedJobs.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+
+      console.log('🔍 useJobs: Final result:', sortedJobs.length, 'jobs')
+      sortedJobs.forEach(job => {
+        console.log(`🔍 useJobs: Job "${job.name}" has ${job.assignedUsers?.length || 0} assignments`)
+      })
+
+      setJobs(sortedJobs)
+    } catch (error) {
+      console.error('🔍 useJobs: Error in loadJobs:', error)
+      setJobs([])
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const addJob = async (job: Omit<Job, 'id'>, assignedUserIds: string[] = []) => {
     if (!currentUser) throw new Error('User not authenticated')
@@ -210,7 +210,7 @@ export const useJobs = () => {
       if (jobError) throw jobError
 
       // Insert job assignments if any users are assigned
-        if (assignedUserIds.length > 0) {
+      if (assignedUserIds.length > 0) {
         const assignments = assignedUserIds.map(userId => ({
           job_id: jobData.id,
           user_id: userId
@@ -226,9 +226,8 @@ export const useJobs = () => {
         }
       }
 
-      // Load the job with assignments
-      
-      
+      // Reload jobs to show the new job with assignments
+      await loadJobs()
     } catch (error) {
       console.error('Error adding job:', error)
       throw error
@@ -343,3 +342,102 @@ export const useJobs = () => {
   }
 }
 
+export const useAllTenantJobs = () => {
+  const [jobs, setJobs] = useState<Job[]>([])
+  const [loading, setLoading] = useState(true)
+  const tenantId = useCurrentTenantId()
+
+  useEffect(() => {
+    if (!tenantId) {
+      setJobs([])
+      setLoading(false)
+      return
+    }
+
+    loadAllTenantJobs()
+  }, [tenantId])
+
+  const loadAllTenantJobs = async () => {
+    try {
+      setLoading(true)
+
+      // Get all jobs with assignments
+      const { data: jobsData, error } = await supabase
+        .from('jobs')
+        .select(`
+          *,
+          job_assignments (
+            user_id
+          )
+        `)
+        .eq('tenant_id', tenantId)
+        .order('date', { ascending: false })
+
+      if (error) throw error
+
+      // Transform jobs with assignment data
+      const transformedJobs: Job[] = (jobsData || []).map((row: any) => {
+        const assignments = (row.job_assignments || []).map((assignment: any) => ({
+          id: assignment.user_id,
+          email: '',
+          displayName: undefined
+        }))
+
+        return {
+          id: row.id,
+          name: row.name,
+          client: row.client,
+          date: row.date,
+          location: row.location,
+          tags: row.tags || [],
+          details: row.details,
+          site_contact: row.site_contact,
+          site_phone_number: row.site_phone_number,
+          assignedUsers: assignments.length > 0 ? assignments : undefined
+        }
+      })
+
+      // Load user profiles for assigned users
+      const userIds: string[] = []
+      transformedJobs.forEach(job => {
+        job.assignedUsers?.forEach(user => {
+          if (!userIds.includes(user.id)) {
+            userIds.push(user.id)
+          }
+        })
+      })
+
+      if (userIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from('user_profiles')
+          .select('id, email, display_name')
+          .in('id', userIds)
+
+        if (profiles) {
+          const profileMap = new Map(profiles.map(p => [p.id, p]))
+          transformedJobs.forEach(job => {
+            job.assignedUsers?.forEach(user => {
+              const profile = profileMap.get(user.id)
+              if (profile) {
+                user.email = profile.email
+                user.displayName = profile.display_name
+              }
+            })
+          })
+        }
+      }
+
+      setJobs(transformedJobs)
+    } catch (error) {
+      console.error('Error loading all tenant jobs:', error)
+      setJobs([])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return {
+    jobs,
+    loading
+  }
+}
