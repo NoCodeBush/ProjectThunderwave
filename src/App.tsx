@@ -11,6 +11,7 @@ import JobDetails from './components/JobDetails'
 import AssetManagement from './components/AssetManagement'
 import JobTests from './components/JobTests'
 import ImageScan from './components/ImageScan'
+import DocumentUpload from './components/DocumentUpload'
 import OfflineBanner from './components/OfflineBanner'
 
 const PrivateRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -92,6 +93,14 @@ function AppRoutes() {
         element={
           <PrivateRoute>
             <ImageScan />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path={ROUTES.DOCUMENT_UPLOAD}
+        element={
+          <PrivateRoute>
+            <DocumentUpload />
           </PrivateRoute>
         }
       />

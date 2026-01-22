@@ -7,6 +7,7 @@ export const ROUTES = {
   ASSET_MANAGEMENT: '/job/:jobId/assets',
   JOB_TESTS: '/job/:jobId/tests',
   IMAGE_SCAN: '/job/:jobId/images',
+  DOCUMENT_UPLOAD: '/job/:jobId/documents',
   ROOT: '/',
 } as const
 
