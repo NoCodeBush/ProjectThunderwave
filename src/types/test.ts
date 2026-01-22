@@ -34,9 +34,9 @@ export interface TestInput {
   unit?: string | null
   position: number
   expected_type: TestExpectedType
-  expected_min?: number | null
-  expected_max?: number | null
-  expected_value?: number | null
+  expected_min?: number | string | null
+  expected_max?: number | string | null
+  expected_value?: number | string | null
   notes?: string | null
   table_layout?: TableLayoutConfig | null // Table configuration if input_type is 'table'
   created_at: string
@@ -88,9 +88,9 @@ export interface TestInputDraft {
   inputType: TestInputType
   unit?: string
   expectedType: TestExpectedType
-  expectedMin?: number | null
-  expectedMax?: number | null
-  expectedValue?: number | null
+  expectedMin?: number | string | null
+  expectedMax?: number | string | null
+  expectedValue?: number | string | null
   notes?: string
   tableLayout?: TableLayoutConfig // Table configuration if inputType is 'table'
 }

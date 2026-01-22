@@ -174,6 +174,14 @@ const JobList: React.FC = () => {
   const { jobs, deleteJob, loading } = useJobs()
   const [searchQuery, setSearchQuery] = useState('')
 
+  console.log('🔍 JobList: Jobs loaded:', jobs.length)
+  console.log('🔍 JobList: Sample job:', jobs[0] ? {
+    id: jobs[0].id,
+    name: jobs[0].name,
+    assignedUsers: jobs[0].assignedUsers?.length || 0,
+    assignedUsersDetails: jobs[0].assignedUsers?.map(u => ({ id: u.id, name: u.displayName || u.email }))
+  } : 'No jobs')
+
   const filteredJobs = jobs.filter(job => {
     const query = searchQuery.toLowerCase()
     return (

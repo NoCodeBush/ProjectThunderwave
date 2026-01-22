@@ -209,9 +209,24 @@ const TestBuilderDrawer: React.FC<TestBuilderDrawerProps> = ({
       return
     }
 
-    const parsed = Number(value)
-    if (!Number.isNaN(parsed)) {
+    // Check if value contains comparison operators
+    const hasComparisonOperators = /[<>≤≥]/.test(value)
+
+    if (hasComparisonOperators) {
+      // Store as string to preserve comparison operators
+      updateInput(index, { [field]: value } as any)
+      return
+    }
+
+    // Try to parse as number
+    const parsed = Number(value.trim())
+
+    if (!Number.isNaN(parsed) && value.trim() !== '') {
+      // Store as number for validation purposes
       updateInput(index, { [field]: parsed } as Partial<TestInputDraft>)
+    } else {
+      // Store as string for non-numeric values without operators
+      updateInput(index, { [field]: value } as any)
     }
   }
 
@@ -376,12 +391,17 @@ const TestBuilderDrawer: React.FC<TestBuilderDrawerProps> = ({
                   {input.inputType === 'number' && (
                     <>
                       <div className="grid gap-4 md:grid-cols-2">
-                        <Input
+                        <Select
                           label="Unit"
-                          placeholder="e.g., V, Ω, A"
                           value={input.unit || ''}
-                          onChange={(e) => updateInput(index, { unit: e.target.value })}
-                          enablePlaceholderFill={true}
+                          options={[
+                            { label: 'Volts (V)', value: 'V' },
+                            { label: 'Amperes (A)', value: 'A' },
+                            { label: 'Ohms (Ω)', value: 'Ω' },
+                            { label: 'Megaohms (MΩ)', value: 'MΩ' }
+                          ]}
+                          onChange={(value) => updateInput(index, { unit: value })}
+                          placeholder="Select unit..."
                         />
 
                         <Select
@@ -396,7 +416,7 @@ const TestBuilderDrawer: React.FC<TestBuilderDrawerProps> = ({
                         {(input.expectedType === 'range' || input.expectedType === 'minimum') && (
                           <Input
                             label="Minimum Value"
-                            type="number"
+                            type="text"
                             value={input.expectedMin ?? ''}
                             onChange={(e) => handleNumericChange(index, 'expectedMin', e.target.value)}
                           />
@@ -405,7 +425,7 @@ const TestBuilderDrawer: React.FC<TestBuilderDrawerProps> = ({
                         {(input.expectedType === 'range' || input.expectedType === 'maximum') && (
                           <Input
                             label="Maximum Value"
-                            type="number"
+                            type="text"
                             value={input.expectedMax ?? ''}
                             onChange={(e) => handleNumericChange(index, 'expectedMax', e.target.value)}
                           />
@@ -414,7 +434,7 @@ const TestBuilderDrawer: React.FC<TestBuilderDrawerProps> = ({
                         {input.expectedType === 'exact' && (
                           <Input
                             label="Expected Value"
-                            type="number"
+                            type="text"
                             value={input.expectedValue ?? ''}
                             onChange={(e) => handleNumericChange(index, 'expectedValue', e.target.value)}
                           />

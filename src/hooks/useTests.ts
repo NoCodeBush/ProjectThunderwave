@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../supabase/config'
 import { useCurrentTenantId } from './useCurrentTenantId'
 import { useAuth } from '../context/AuthContext'
-import { useAssets } from './useAssets'
 import { CreateTestPayload, SaveTestResultPayload, Test, TestResult } from '../types/test'
 
 interface UseTestsOptions {
@@ -288,6 +287,25 @@ export const useTests = (options: UseTestsOptions = {}) => {
     setTests(prev => prev.filter(test => test.id !== testId))
   }
 
+  const assignTestsToJob = async (testIds: string[], jobIdToAssign: string) => {
+    if (!currentUser) throw new Error('User not authenticated')
+
+    const { error: updateError } = await supabase
+      .from('tests')
+      .update({
+        job_id: jobIdToAssign,
+        updated_at: new Date().toISOString()
+      })
+      .in('id', testIds)
+
+    if (updateError) {
+      console.error('Error assigning tests to job:', updateError)
+      throw updateError
+    }
+
+    await fetchTests()
+  }
+
   const saveTestResult = async (payload: SaveTestResultPayload) => {
     if (!currentUser) throw new Error('User not authenticated')
 
@@ -385,6 +403,7 @@ export const useTests = (options: UseTestsOptions = {}) => {
     linkTestToAsset,
     unlinkTestFromAsset,
     deleteTest,
+    assignTestsToJob,
     refresh: fetchTests
   }
 }
