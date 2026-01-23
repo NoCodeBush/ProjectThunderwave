@@ -1,4 +1,4 @@
-export type TestInputType = 'number' | 'text' | 'boolean' | 'table'
+export type TestInputType = 'number' | 'text' | 'boolean' | 'table' | 'nested_table'
 
 export type TestExpectedType = 'range' | 'minimum' | 'maximum' | 'exact'
 
@@ -26,6 +26,37 @@ export interface TableLayoutConfig {
   headerRows?: string[] // Optional header rows (e.g., ['Set Injection Unit output current (A):'])
 }
 
+// Nested table cell types
+export type NestedCellType = 'input' | 'nested_table' | 'header' | 'empty'
+
+export interface NestedTableCell {
+  id: string // Unique identifier for the cell
+  rowIndex: number
+  columnIndex: number
+  rowSpan?: number // Number of rows this cell spans
+  colSpan?: number // Number of columns this cell spans
+  cellType: NestedCellType
+  // For input cells
+  inputType?: 'number' | 'text' | 'boolean'
+  label?: string
+  unit?: string
+  expectedType?: TestExpectedType
+  expectedMin?: number | null
+  expectedMax?: number | null
+  expectedValue?: number | null
+  // For header cells
+  headerText?: string
+  // For nested table cells
+  nestedTable?: NestedTableLayout
+}
+
+export interface NestedTableLayout {
+  rows: number // Number of rows in the grid
+  columns: number // Number of columns in the grid
+  cells: NestedTableCell[] // All cells in the table
+  headerRows?: string[] // Optional header rows above the table
+}
+
 export interface TestInput {
   id: string
   test_id: string
@@ -39,6 +70,7 @@ export interface TestInput {
   expected_value?: number | string | null
   notes?: string | null
   table_layout?: TableLayoutConfig | null // Table configuration if input_type is 'table'
+  nested_table_layout?: NestedTableLayout | null // Nested table configuration if input_type is 'nested_table'
   created_at: string
   updated_at: string
 }
@@ -93,6 +125,7 @@ export interface TestInputDraft {
   expectedValue?: number | string | null
   notes?: string
   tableLayout?: TableLayoutConfig // Table configuration if inputType is 'table'
+  nestedTableLayout?: NestedTableLayout // Nested table configuration if inputType is 'nested_table'
 }
 
 export interface CreateTestPayload {

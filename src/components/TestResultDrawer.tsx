@@ -5,6 +5,7 @@ import Button from './ui/Button'
 import Input from './ui/Input'
 import TextArea from './ui/TextArea'
 import TableInputRenderer from './table-input/TableInputRenderer'
+import NestedTableRenderer from './nested-table/NestedTableRenderer'
 
 interface TestResultDrawerProps {
   isOpen: boolean
@@ -238,14 +239,20 @@ const ValidationIndicator: React.FC<{ status: ExpectationStatus }> = ({ status }
 const TestResultDrawer: React.FC<TestResultDrawerProps> = ({ isOpen, test, jobId, defaultAssetId, defaultResultId, onClose, onSave }) => {
   const inputs = useMemo(() => test.test_inputs || [], [test.test_inputs])
   
-  // Separate table inputs from regular inputs
+  // Separate table and nested_table inputs from regular inputs
   const tableInputs = useMemo(() => {
     return inputs.filter(input => input.input_type === 'table')
   }, [inputs])
   
+  const nestedTableInputs = useMemo(() => {
+    return inputs.filter(input => input.input_type === 'nested_table')
+  }, [inputs])
+  
   const regularInputs = useMemo(() => {
-    return inputs.filter(input => !tableInputs.includes(input))
-  }, [inputs, tableInputs])
+    return inputs.filter(input => 
+      input.input_type !== 'table' && input.input_type !== 'nested_table'
+    )
+  }, [inputs])
   
   // Helper to get table layout from an input
   const getTableLayout = (input: TestInput) => {
@@ -425,6 +432,39 @@ const TestResultDrawer: React.FC<TestResultDrawerProps> = ({ isOpen, test, jobId
         })
     })
 
+    // Validate nested table inputs
+    nestedTableInputs.forEach((nestedTableInput) => {
+      const nestedLayout = nestedTableInput.nested_table_layout
+      if (!nestedLayout) return
+      
+      nestedLayout.cells
+        .filter((cell) => cell.cellType === 'input')
+        .forEach((cell) => {
+          const cellValueKey = `${nestedTableInput.id}_${cell.rowIndex}_${cell.columnIndex}`
+          const rawValue = values[cellValueKey]
+          
+          if (cell.inputType === 'number') {
+            const asString = (rawValue ?? '').toString()
+            if (!asString.trim()) {
+              newErrors[cellValueKey] = 'Enter a value'
+              return
+            }
+            const cleanValue = asString.replace(/[<>]/g, '').trim()
+            if (cleanValue && Number.isNaN(Number(cleanValue))) {
+              newErrors[cellValueKey] = 'Enter a valid number (may include < or > symbols)'
+            }
+          } else if (cell.inputType === 'text') {
+            if (!rawValue || !(rawValue as string).trim()) {
+              newErrors[cellValueKey] = 'Enter a value'
+            }
+          } else if (cell.inputType === 'boolean') {
+            if (rawValue === null || rawValue === undefined) {
+              newErrors[cellValueKey] = 'Select Yes or No'
+            }
+          }
+        })
+    })
+
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
   }
@@ -517,6 +557,58 @@ const TestResultDrawer: React.FC<TestResultDrawerProps> = ({ isOpen, test, jobId
             responses.push({
               inputId: tableInput.id,
               value: rawValue as boolean | null,
+              tableCellPosition: {
+                rowIndex: cell.rowIndex,
+                columnIndex: cell.columnIndex
+              }
+            })
+          }
+        })
+    })
+
+    // Build responses for nested table inputs
+    nestedTableInputs.forEach((nestedTableInput) => {
+      const nestedLayout = nestedTableInput.nested_table_layout
+      if (!nestedLayout) return
+      
+      nestedLayout.cells
+        .filter((cell) => cell.cellType === 'input')
+        .forEach((cell) => {
+          const cellValueKey = `${nestedTableInput.id}_${cell.rowIndex}_${cell.columnIndex}`
+          const rawValue = values[cellValueKey]
+          
+          if (cell.inputType === 'number') {
+            const asString = rawValue?.toString() ?? ''
+            let parsed: number | string | null = null
+            if (asString.trim()) {
+              if (asString.includes('<') || asString.includes('>')) {
+                parsed = asString.trim()
+              } else {
+                const numValue = Number(asString.trim())
+                parsed = Number.isNaN(numValue) ? asString.trim() : numValue
+              }
+            }
+            responses.push({
+              inputId: nestedTableInput.id,
+              value: parsed,
+              tableCellPosition: {
+                rowIndex: cell.rowIndex,
+                columnIndex: cell.columnIndex
+              }
+            })
+          } else if (cell.inputType === 'text') {
+            responses.push({
+              inputId: nestedTableInput.id,
+              value: (rawValue as string) ?? null,
+              tableCellPosition: {
+                rowIndex: cell.rowIndex,
+                columnIndex: cell.columnIndex
+              }
+            })
+          } else if (cell.inputType === 'boolean') {
+            responses.push({
+              inputId: nestedTableInput.id,
+              value: rawValue === null ? null : Boolean(rawValue),
               tableCellPosition: {
                 rowIndex: cell.rowIndex,
                 columnIndex: cell.columnIndex
@@ -700,6 +792,19 @@ const TestResultDrawer: React.FC<TestResultDrawerProps> = ({ isOpen, test, jobId
                 <TableInputRenderer
                   key={tableInput.id}
                   input={tableInput}
+                  values={values}
+                  responses={latestResult?.responses || []}
+                  onChange={updateValue}
+                  errors={errors}
+                  readOnly={false}
+                />
+              ))}
+
+              {/* Render nested table inputs */}
+              {nestedTableInputs.map((nestedTableInput) => (
+                <NestedTableRenderer
+                  key={nestedTableInput.id}
+                  input={nestedTableInput}
                   values={values}
                   responses={latestResult?.responses || []}
                   onChange={updateValue}

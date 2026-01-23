@@ -222,7 +222,8 @@ export const useTests = (options: UseTestsOptions = {}) => {
           expected_max: input.expectedMax ?? null,
           expected_value: input.expectedValue ?? null,
           notes: input.notes || null,
-          table_layout: input.inputType === 'table' && input.tableLayout ? input.tableLayout : null
+          table_layout: input.inputType === 'table' && input.tableLayout ? input.tableLayout : null,
+          nested_table_layout: input.inputType === 'nested_table' && input.nestedTableLayout ? input.nestedTableLayout : null
         }
       })
 

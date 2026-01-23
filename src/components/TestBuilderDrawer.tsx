@@ -9,6 +9,7 @@ import TextArea from './ui/TextArea'
 import Select from './ui/Select'
 import Button from './ui/Button'
 import TableInputBuilder from './table-input/TableInputBuilder'
+import NestedTableBuilder from './nested-table/NestedTableBuilder'
 
 interface TestBuilderDrawerProps {
   isOpen: boolean
@@ -43,7 +44,8 @@ const inputTypeOptions: { label: string; value: TestInputType }[] = [
   { label: 'Number', value: 'number' },
   { label: 'Text', value: 'text' },
   { label: 'Yes / No', value: 'boolean' },
-  { label: 'Table (Advanced)', value: 'table' }
+  { label: 'Table (Advanced)', value: 'table' },
+  { label: 'Nested Table (WYSIWYG)', value: 'nested_table' }
 ]
 
 const TestBuilderDrawer: React.FC<TestBuilderDrawerProps> = ({
@@ -140,6 +142,25 @@ const TestBuilderDrawer: React.FC<TestBuilderDrawerProps> = ({
         continue
       }
 
+      // Skip validation for nested table inputs (handled separately)
+      if (input.inputType === 'nested_table') {
+        if (!input.nestedTableLayout) {
+          setStatusMessage({ type: 'error', message: 'Nested table inputs must have a table configuration.' })
+          return false
+        }
+        if (input.nestedTableLayout.rows === 0 || input.nestedTableLayout.columns === 0) {
+          setStatusMessage({ type: 'error', message: 'Nested table must have at least one row and one column.' })
+          return false
+        }
+        // Check if at least one cell is configured (not all empty)
+        const configuredCells = input.nestedTableLayout.cells.filter(cell => cell.cellType !== 'empty')
+        if (configuredCells.length === 0) {
+          setStatusMessage({ type: 'error', message: 'Nested table must have at least one configured cell (header, input, or nested table).' })
+          return false
+        }
+        continue
+      }
+
       // Skip expected value validation for boolean (yes/no) and text inputs
       // Only number inputs need expected value validation
       if (input.inputType !== 'number') {
@@ -214,7 +235,7 @@ const TestBuilderDrawer: React.FC<TestBuilderDrawerProps> = ({
 
     if (hasComparisonOperators) {
       // Store as string to preserve comparison operators
-      updateInput(index, { [field]: value } as any)
+      updateInput(index, { [field]: value } as Partial<TestInputDraft>)
       return
     }
 
@@ -226,7 +247,7 @@ const TestBuilderDrawer: React.FC<TestBuilderDrawerProps> = ({
       updateInput(index, { [field]: parsed } as Partial<TestInputDraft>)
     } else {
       // Store as string for non-numeric values without operators
-      updateInput(index, { [field]: value } as any)
+      updateInput(index, { [field]: value } as Partial<TestInputDraft>)
     }
   }
 
@@ -368,10 +389,26 @@ const TestBuilderDrawer: React.FC<TestBuilderDrawerProps> = ({
                               rows: ['L1 CT', 'L2 CT', 'L3 CT'],
                               cells: [],
                               headerRows: []
-                            }
+                            },
+                            nestedTableLayout: undefined
+                          })
+                        } else if (newType === 'nested_table') {
+                          // Initialize nested table layout if switching to nested_table
+                          updateInput(index, {
+                            inputType: newType,
+                            nestedTableLayout: input.nestedTableLayout || {
+                              rows: 3,
+                              columns: 3,
+                              cells: []
+                            },
+                            tableLayout: undefined
                           })
                         } else {
-                          updateInput(index, { inputType: newType, tableLayout: undefined })
+                          updateInput(index, { 
+                            inputType: newType, 
+                            tableLayout: undefined,
+                            nestedTableLayout: undefined
+                          })
                         }
                       }}
                     />
@@ -383,6 +420,17 @@ const TestBuilderDrawer: React.FC<TestBuilderDrawerProps> = ({
                         label={input.label}
                         value={input.tableLayout}
                         onChange={(config) => updateInput(index, { tableLayout: config })}
+                        onLabelChange={(newLabel) => updateInput(index, { label: newLabel })}
+                      />
+                    </div>
+                  )}
+
+                  {input.inputType === 'nested_table' && (
+                    <div className="mt-4 rounded-xl border border-primary-200 bg-primary-50 p-4">
+                      <NestedTableBuilder
+                        label={input.label}
+                        value={input.nestedTableLayout}
+                        onChange={(config) => updateInput(index, { nestedTableLayout: config })}
                         onLabelChange={(newLabel) => updateInput(index, { label: newLabel })}
                       />
                     </div>
