@@ -71,7 +71,66 @@ export const getJobImageUrl = (filePath?: string | null) => {
     .replace(/^\/+/, '') // remove leading slashes
     .replace(/\/+$/, '') // remove trailing slashes
 
-  const publicUrl = `${supabase.supabaseUrl}/storage/v1/object/public/job-images/${normalizedPath}`
+  const publicUrl = `${supabaseUrl}/storage/v1/object/public/job-images/${normalizedPath}`
+  console.log('Generated public URL:', publicUrl)
+  return publicUrl
+}
+
+// Document storage helper functions
+export const uploadJobDocument = async (jobId: string, file: File, filename?: string) => {
+  const fileExt = file.name.split('.').pop()
+  const fileName = filename || `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`
+  // Store path relative to bucket (without bucket name prefix)
+  const filePath = `${jobId}/${fileName}`
+
+  console.log('Uploading to bucket "job-documents" at path:', filePath)
+
+  const { error } = await supabase.storage
+    .from('job-documents')
+    .upload(filePath, file)
+
+  if (error) {
+    console.error('Upload error:', error)
+    throw error
+  }
+
+  console.log('Upload successful for', filePath)
+  return { filePath, fileName }
+}
+
+export const downloadJobDocument = async (filePath: string) => {
+  const { data, error } = await supabase.storage
+    .from('job-documents')
+    .download(filePath)
+
+  if (error) throw error
+
+  return data
+}
+
+export const deleteJobDocument = async (filePath: string) => {
+  const { error } = await supabase.storage
+    .from('job-documents')
+    .remove([filePath])
+
+  if (error) throw error
+}
+
+export const getJobDocumentUrl = (filePath?: string | null) => {
+  // Handle undefined/null file paths
+  if (!filePath) {
+    console.warn('getJobDocumentUrl called with undefined/null filePath')
+    return null
+  }
+
+  // For public bucket, construct direct public URL
+  const normalizedPath = filePath
+    .replace(/[\u200B-\u200D\uFEFF]/g, '') // strip zero-width chars
+    .trim()
+    .replace(/^\/+/, '') // remove leading slashes
+    .replace(/\/+$/, '') // remove trailing slashes
+
+  const publicUrl = `${supabaseUrl}/storage/v1/object/public/job-documents/${normalizedPath}`
   console.log('Generated public URL:', publicUrl)
   return publicUrl
 }
