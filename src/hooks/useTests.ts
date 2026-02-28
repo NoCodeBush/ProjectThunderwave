@@ -6,15 +6,13 @@ import { CreateTestPayload, SaveTestResultPayload, Test, TestResult } from '../t
 
 interface UseTestsOptions {
   jobId?: string
-  assetId?: string
-  unlinkedOnly?: boolean
   includeInputs?: boolean
   includeResults?: boolean
   includeJobAssetTypes?: boolean
 }
 
 export const useTests = (options: UseTestsOptions = {}) => {
-  const { jobId, assetId, unlinkedOnly = false, includeInputs = true, includeResults = true, includeJobAssetTypes = false } = options
+  const { jobId, includeInputs = true, includeResults = true, includeJobAssetTypes = false } = options
   const [tests, setTests] = useState<Test[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -65,20 +63,12 @@ export const useTests = (options: UseTestsOptions = {}) => {
         jobAssetTypes = [...new Set(jobAssetTypes)]
       }
 
-      // Build the query filter
-      if (includeJobAssetTypes && jobId && jobAssetTypes.length > 0) {
-        // When filtering by job asset types, only show tests that match those asset types
-        // Tests are no longer directly linked to jobs, only to asset types
-        query = query.in('asset_type', jobAssetTypes)
-      } else if (jobId && !includeJobAssetTypes) {
-        // Legacy behavior: include tests directly linked to the job
-        query = query.eq('job_id', jobId)
-      }
+      // Filter by tenant - tests are tenant-scoped
+      query = query.eq('tenant_id', tenantId)
 
-      if (unlinkedOnly) {
-        query = query.is('asset_id', null)
-      } else if (assetId) {
-        query = query.eq('asset_id', assetId)
+      // When filtering by job asset types, only show tests that match those asset types
+      if (includeJobAssetTypes && jobAssetTypes.length > 0) {
+        query = query.in('asset_type', jobAssetTypes)
       }
 
       const { data, error: queryError } = await query
@@ -141,7 +131,7 @@ export const useTests = (options: UseTestsOptions = {}) => {
     } finally {
       setLoading(false)
     }
-  }, [tenantId, currentUser, jobId, assetId, unlinkedOnly, includeInputs])
+  }, [tenantId, currentUser, jobId, includeInputs, includeJobAssetTypes])
 
   useEffect(() => {
     fetchTests()
@@ -151,14 +141,14 @@ export const useTests = (options: UseTestsOptions = {}) => {
     }
 
     const channel = supabase
-      .channel(`tests_${tenantId}_${jobId || 'all'}`)
+      .channel(`tests_${tenantId}`)
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
           table: 'tests',
-          ...(jobId ? { filter: `job_id=eq.${jobId}` } : {})
+          filter: `tenant_id=eq.${tenantId}`
         },
         () => fetchTests()
       )
@@ -176,12 +166,16 @@ export const useTests = (options: UseTestsOptions = {}) => {
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [fetchTests, tenantId, currentUser, jobId])
+  }, [fetchTests, tenantId, currentUser])
 
   const createTest = async (payload: CreateTestPayload) => {
     if (!currentUser) throw new Error('User not authenticated')
 
-    const { inputs, name, description, instructions, jobId, assetType } = payload
+    const { inputs, name, description, instructions, assetType } = payload
+
+    if (!tenantId) {
+      throw new Error('Tenant context is required to create tests')
+    }
 
     if (!inputs || inputs.length === 0) {
       throw new Error('At least one test input is required')
@@ -194,7 +188,7 @@ export const useTests = (options: UseTestsOptions = {}) => {
     const { data: testRecord, error: insertError } = await supabase
       .from('tests')
       .insert({
-        job_id: jobId || null, // job_id is now optional - tests are linked to asset types
+        tenant_id: tenantId,
         asset_type: assetType,
         name,
         description: description || null,
@@ -241,39 +235,6 @@ export const useTests = (options: UseTestsOptions = {}) => {
     return testRecord as Test
   }
 
-  const linkTestToAsset = async (testId: string, assetIdToLink: string, assetJobId: string) => {
-    const { error: updateError } = await supabase
-      .from('tests')
-      .update({
-        asset_id: assetIdToLink,
-        job_id: assetJobId
-      })
-      .eq('id', testId)
-
-    if (updateError) {
-      console.error('Error linking test to asset:', updateError)
-      throw updateError
-    }
-
-    await fetchTests()
-  }
-
-  const unlinkTestFromAsset = async (testId: string) => {
-    const { error: updateError } = await supabase
-      .from('tests')
-      .update({
-        asset_id: null
-      })
-      .eq('id', testId)
-
-    if (updateError) {
-      console.error('Error unlinking test from asset:', updateError)
-      throw updateError
-    }
-
-    await fetchTests()
-  }
-
   const deleteTest = async (testId: string) => {
     const { error: deleteError } = await supabase
       .from('tests')
@@ -286,25 +247,6 @@ export const useTests = (options: UseTestsOptions = {}) => {
     }
 
     setTests(prev => prev.filter(test => test.id !== testId))
-  }
-
-  const assignTestsToJob = async (testIds: string[], jobIdToAssign: string) => {
-    if (!currentUser) throw new Error('User not authenticated')
-
-    const { error: updateError } = await supabase
-      .from('tests')
-      .update({
-        job_id: jobIdToAssign,
-        updated_at: new Date().toISOString()
-      })
-      .in('id', testIds)
-
-    if (updateError) {
-      console.error('Error assigning tests to job:', updateError)
-      throw updateError
-    }
-
-    await fetchTests()
   }
 
   const saveTestResult = async (payload: SaveTestResultPayload) => {
@@ -401,10 +343,7 @@ export const useTests = (options: UseTestsOptions = {}) => {
     error,
     createTest,
     saveTestResult,
-    linkTestToAsset,
-    unlinkTestFromAsset,
     deleteTest,
-    assignTestsToJob,
     refresh: fetchTests
   }
 }

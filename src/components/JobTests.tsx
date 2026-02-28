@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from 'react'
+import React, { useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ROUTES } from '../constants'
 import { useJobs } from '../hooks/useJobs'
@@ -22,7 +22,7 @@ const JobTests: React.FC = () => {
   const { jobId } = useParams<{ jobId: string }>()
   const navigate = useNavigate()
   const { jobs, loading: jobsLoading } = useJobs()
-  const { tests, loading: testsLoading, saveTestResult, assignTestsToJob, createTest: createNewTest } = useTests({ jobId, includeJobAssetTypes: true, includeResults: true })
+  const { tests, loading: testsLoading, saveTestResult, createTest: createNewTest } = useTests({ jobId, includeJobAssetTypes: true, includeResults: true })
   const { assets, loading: assetsLoading } = useAssets(jobId)
   const [search, setSearch] = useState('')
   const [activeTestId, setActiveTestId] = useState<string | null>(null)
@@ -31,38 +31,7 @@ const JobTests: React.FC = () => {
 
   const job = jobs.find(j => j.id === jobId)
 
-  // Auto-assign tests to job based on asset types if no job-specific tests exist
-  useEffect(() => {
-    const autoAssignTests = async () => {
-      if (!job || !assets || !tests || jobsLoading || testsLoading || assetsLoading || !jobId) return
-
-      const jobSpecificTests = tests.filter(test => test.job_id === jobId)
-      const hasJobSpecificTests = jobSpecificTests.length > 0
-
-      // If job has no specific tests but has assets, auto-assign matching tests
-      if (!hasJobSpecificTests && assets.length > 0) {
-        const assetTypes = [...new Set(assets.map(asset => asset.asset_type))]
-        const matchingTests = tests.filter(test =>
-          test.asset_type && assetTypes.includes(test.asset_type) && !test.job_id
-        )
-
-        // Auto-link matching tests to this job
-        if (matchingTests.length > 0) {
-          try {
-            const testIds = matchingTests.map(test => test.id)
-            await assignTestsToJob(testIds, jobId)
-            console.log(`Auto-assigned ${matchingTests.length} tests to job ${jobId}`)
-          } catch (error) {
-            console.error('Failed to auto-assign tests:', error)
-          }
-        }
-      }
-    }
-
-    autoAssignTests()
-  }, [job, assets, tests, jobId, jobsLoading, testsLoading, assetsLoading, assignTestsToJob])
-
-  // Expand tests to show one per asset of that type
+  // Expand tests to show one per asset of that type (tests are tenant-scoped templates matched by asset_type)
   const testInstances = useMemo(() => {
     if (!tests || !assets) return []
     
@@ -150,10 +119,7 @@ const JobTests: React.FC = () => {
 
   const handleCreateTest = async (payload: any) => {
     try {
-      await createNewTest({
-        ...payload,
-        jobId: jobId
-      })
+      await createNewTest(payload)
       setIsTestBuilderOpen(false)
     } catch (error) {
       console.error('Failed to create test:', error)
@@ -263,7 +229,6 @@ const JobTests: React.FC = () => {
                 const latestResult = resultId ? test.test_results?.find(r => r.id === resultId) : undefined
                 const assetLabel = asset.make || asset.model ? `${asset.make || ''} ${asset.model || ''}`.trim() : ASSET_TYPE_CONFIGS[asset.asset_type]?.label || asset.asset_type
                 const assetDetails = asset.serial_number ? `Serial: ${asset.serial_number}` : asset.asset_type
-                const isAutoAssigned = test.job_id === jobId // Tests assigned to this specific job
 
                 return (
                   <div
@@ -274,11 +239,6 @@ const JobTests: React.FC = () => {
                       <div>
                         <div className="flex items-center gap-2">
                           <p className="text-base font-semibold text-gray-900">{test.name}</p>
-                          {isAutoAssigned && (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                              Auto-assigned
-                            </span>
-                          )}
                         </div>
                         <p className="text-sm text-gray-700 mt-1">
                           Asset: {assetLabel}
@@ -356,8 +316,6 @@ const JobTests: React.FC = () => {
         isOpen={isTestBuilderOpen}
         onClose={() => setIsTestBuilderOpen(false)}
         onCreate={handleCreateTest}
-        defaultJobId={jobId}
-        lockJob={true}
       />
     </div>
   )

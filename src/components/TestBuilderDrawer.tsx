@@ -2,8 +2,6 @@ import React, { useEffect, useMemo, useState } from 'react'
 //import { Job } from '../types/job'
 import { ASSET_TYPE_CONFIGS } from '../types/asset'
 import { CreateTestPayload, TestExpectedType, TestInputDraft, TestInputType } from '../types/test'
-//import { useAssets } from '../hooks/useAssets'
-import { useJobs } from '../hooks/useJobs'
 import Input from './ui/Input'
 import TextArea from './ui/TextArea'
 import Select from './ui/Select'
@@ -14,10 +12,8 @@ import NestedTableBuilder from './nested-table/NestedTableBuilder'
 interface TestBuilderDrawerProps {
   isOpen: boolean
   onClose: () => void
-  defaultJobId?: string
-  defaultAssetId?: string
-  defaultAssetLabel?: string
-  lockJob?: boolean
+  /** Pre-select asset type (e.g. when creating from asset context) */
+  defaultAssetType?: string
   lockAsset?: boolean
   onCreate: (payload: CreateTestPayload) => Promise<void>
 }
@@ -51,23 +47,19 @@ const inputTypeOptions: { label: string; value: TestInputType }[] = [
 const TestBuilderDrawer: React.FC<TestBuilderDrawerProps> = ({
   isOpen,
   onClose,
-  defaultJobId,
-  defaultAssetId,
-  defaultAssetLabel,
-  lockJob = false,
+  defaultAssetType,
   lockAsset = false,
   onCreate
 }) => {
   const [testName, setTestName] = useState('')
   const [description, setDescription] = useState('')
   const [instructions, setInstructions] = useState('')
-  const [selectedJobId, setSelectedJobId] = useState<string>(defaultJobId || '')
-  const [selectedAssetType, setSelectedAssetType] = useState<string>(defaultAssetId || '')
+  const [selectedAssetType, setSelectedAssetType] = useState<string>(defaultAssetType || '')
   const [inputs, setInputs] = useState<TestInputDraft[]>([createEmptyInput()])
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const effectiveAssetType = lockAsset ? (defaultAssetId || '') : selectedAssetType
+  const effectiveAssetType = lockAsset ? (defaultAssetType || '') : selectedAssetType
 
   useEffect(() => {
     if (isOpen) {
@@ -75,20 +67,10 @@ const TestBuilderDrawer: React.FC<TestBuilderDrawerProps> = ({
       setDescription('')
       setInstructions('')
       setInputs([createEmptyInput()])
-      setSelectedJobId(defaultJobId || '')
-      setSelectedAssetType(defaultAssetId || '')
+      setSelectedAssetType(defaultAssetType || '')
       setStatusMessage(null)
     }
-  }, [isOpen, defaultJobId, defaultAssetId])
-
-  const { jobs } = useJobs()
-
-  const jobOptions = useMemo(() => {
-    return jobs.map((job) => ({
-      value: job.id,
-      label: job.name
-    }))
-  }, [jobs])
+  }, [isOpen, defaultAssetType])
 
   const assetTypeOptions = useMemo(() => {
     return Object.entries(ASSET_TYPE_CONFIGS).map(([key, config]) => ({
@@ -100,11 +82,6 @@ const TestBuilderDrawer: React.FC<TestBuilderDrawerProps> = ({
   const validateInputs = () => {
     if (!testName.trim()) {
       setStatusMessage({ type: 'error', message: 'A test name is required.' })
-      return false
-    }
-
-    if (lockJob && !selectedJobId) {
-      setStatusMessage({ type: 'error', message: 'A job must be selected for this test.' })
       return false
     }
 
@@ -207,7 +184,6 @@ const TestBuilderDrawer: React.FC<TestBuilderDrawerProps> = ({
         name: testName.trim(),
         description: description.trim() || undefined,
         instructions: instructions.trim() || undefined,
-        jobId: lockJob ? selectedJobId : undefined, // Only include jobId if locked
         assetType: effectiveAssetType || undefined,
         inputs
       })
@@ -301,19 +277,6 @@ const TestBuilderDrawer: React.FC<TestBuilderDrawerProps> = ({
             enablePlaceholderFill={true}
             required
           />
-
-          {/* Job selection removed - tests are no longer linked to jobs initially */}
-
-          {lockJob && defaultJobId && (
-            <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">
-                Job
-              </label>
-              <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">
-                {jobOptions.find(job => job.value === defaultJobId)?.label || 'Selected job'}
-              </div>
-            </div>
-          )}
 
           <Input
             label="Reference / Notes"
