@@ -333,10 +333,7 @@ const TestResultDrawer: React.FC<TestResultDrawerProps> = ({ isOpen, test, jobId
     if (defaultAssetId) {
       // Lock to the provided asset
       setSelectedAssetIds([defaultAssetId])
-    } else if (latestResult?.asset_ids && latestResult.asset_ids.length > 0) {
-      setSelectedAssetIds(latestResult.asset_ids)
     } else if (latestResult?.asset_id) {
-      // Fallback to legacy asset_id field for backward compatibility
       setSelectedAssetIds([latestResult.asset_id])
     } else {
       setSelectedAssetIds([])

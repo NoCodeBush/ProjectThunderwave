@@ -45,11 +45,7 @@ const JobTests: React.FC = () => {
       
       matchingAssets.forEach(asset => {
         // Find the latest result for this test-asset combination
-        // Results are linked via test_result_assets junction table (asset_ids) or legacy asset_id field
-        const result = test.test_results?.find(r => 
-          (r.asset_ids && r.asset_ids.length > 0 && r.asset_ids.includes(asset.id)) ||
-          r.asset_id === asset.id
-        )
+        const result = test.test_results?.find(r => r.asset_id === asset.id)
         
         instances.push({
           test,
@@ -90,7 +86,7 @@ const JobTests: React.FC = () => {
     responses: TestResultResponse[],
     existingResultId?: string,
     status: TestResultStatus = 'submitted',
-    selectedAssetIds?: string[]
+    _selectedAssetIds?: string[]
   ) => {
     if (!activeTestInstance) {
       throw new Error('Cannot save results without an active test instance.')

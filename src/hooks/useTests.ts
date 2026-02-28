@@ -75,38 +75,6 @@ export const useTests = (options: UseTestsOptions = {}) => {
 
       if (queryError) throw queryError
 
-      // Fetch asset associations for all test results
-      const testResultIds: string[] = []
-      if (includeResults && data) {
-        data.forEach((test: any) => {
-          if (test.test_results && Array.isArray(test.test_results)) {
-            test.test_results.forEach((result: any) => {
-              if (result.id) {
-                testResultIds.push(result.id)
-              }
-            })
-          }
-        })
-      }
-
-      let assetAssociations: Record<string, string[]> = {}
-      if (testResultIds.length > 0) {
-        const { data: assetData, error: assetError } = await supabase
-          .from('test_result_assets')
-          .select('test_result_id, asset_id')
-          .in('test_result_id', testResultIds)
-
-        if (!assetError && assetData) {
-          assetAssociations = assetData.reduce((acc: Record<string, string[]>, row: any) => {
-            if (!acc[row.test_result_id]) {
-              acc[row.test_result_id] = []
-            }
-            acc[row.test_result_id].push(row.asset_id)
-            return acc
-          }, {})
-        }
-      }
-
       const normalized = (data || []).map((row: any) => {
         // Parse table layouts from test inputs
         const testInputs = row.test_inputs
@@ -116,10 +84,7 @@ export const useTests = (options: UseTestsOptions = {}) => {
         return {
           ...row,
           test_inputs: testInputs,
-          test_results: (row.test_results || []).map((result: any) => ({
-            ...result,
-            asset_ids: assetAssociations[result.id] || []
-          }))
+          test_results: row.test_results || []
         } as Test
       })
 
@@ -269,7 +234,7 @@ export const useTests = (options: UseTestsOptions = {}) => {
     const baseData = {
       test_id: testId,
       job_id: payloadJobId,
-      asset_id: assetIds[0] || null, // Keep for backward compatibility, but we'll use the junction table
+      asset_id: assetIds[0] || null,
       responses,
       status,
       submitted_by: currentUser.id
@@ -307,30 +272,6 @@ export const useTests = (options: UseTestsOptions = {}) => {
       }
 
       result = data as TestResult
-    }
-
-    // Save asset relationships
-    if (result && assetIds.length > 0) {
-      // Delete existing asset relationships for this result
-      await supabase
-        .from('test_result_assets')
-        .delete()
-        .eq('test_result_id', result.id)
-
-      // Insert new asset relationships
-      const assetRelationships = assetIds.map(assetId => ({
-        test_result_id: result.id,
-        asset_id: assetId
-      }))
-
-      const { error: assetError } = await supabase
-        .from('test_result_assets')
-        .insert(assetRelationships)
-
-      if (assetError) {
-        console.error('Error saving test result asset relationships:', assetError)
-        throw assetError
-      }
     }
 
     await fetchTests()

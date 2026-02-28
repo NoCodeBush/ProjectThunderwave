@@ -318,10 +318,8 @@ const AssetCard: React.FC<{
       if (!test.test_results) return
       
       test.test_results.forEach(result => {
-        // Check if this result is for this asset (via asset_ids array or legacy asset_id)
-        const isForThisAsset = 
-          (result.asset_ids && result.asset_ids.includes(asset.id)) ||
-          result.asset_id === asset.id
+        // Check if this result is for this asset
+        const isForThisAsset = result.asset_id === asset.id
         
         // Only include submitted (completed) results
         if (isForThisAsset && result.status === 'submitted') {
