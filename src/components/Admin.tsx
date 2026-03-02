@@ -25,7 +25,7 @@ const Admin: React.FC = () => {
   const navigate = useNavigate()
   const { logout, currentUser } = useAuth()
   const { tenant, updateTenant, loading: tenantLoading } = useTenant()
-  const { jobs, loading: jobsLoading, addJob, updateJob, deleteJob } = useJobs()
+  const { jobs, loading: jobsLoading, addJob, updateJob, deleteJob, assignUserToJob, unassignUserFromJob } = useJobs()
   const { equipment, loading: equipmentLoading, addEquipment, deleteEquipment } = useTestEquipment()
   const { users, loading: usersLoading, refreshUsers } = useUsers()
   const { isAdministrator } = useUserRole()
@@ -132,6 +132,7 @@ const Admin: React.FC = () => {
     if (!editingJob) return
 
     try {
+      // Update job details
       await updateJob(editingJob.id, {
         name: editingJob.name,
         client: editingJob.client,
@@ -142,6 +143,25 @@ const Admin: React.FC = () => {
         site_contact: editingJob.site_contact,
         site_phone_number: editingJob.site_phone_number,
       })
+
+      // Sync user assignments
+      const originalJob = jobs.find(j => j.id === editingJob.id)
+      const originalUserIds = originalJob?.assignedUsers?.map(u => u.id) || []
+      const newUserIds = editingJob.assignedUserIds || []
+
+      // Find users to add and remove
+      const usersToAdd = newUserIds.filter((id: string) => !originalUserIds.includes(id))
+      const usersToRemove = originalUserIds.filter((id: string) => !newUserIds.includes(id))
+
+      // Add new assignments
+      for (const userId of usersToAdd) {
+        await assignUserToJob(editingJob.id, userId)
+      }
+
+      // Remove old assignments
+      for (const userId of usersToRemove) {
+        await unassignUserFromJob(editingJob.id, userId)
+      }
 
       setEditingJob(null)
       setBanner({ message: 'Job updated successfully!', type: 'success' })
@@ -787,6 +807,59 @@ const Admin: React.FC = () => {
                     enablePlaceholderFill={true}
                   />
 
+                  <div>
+                    <label htmlFor="edit-job-assigned-users" className="block text-sm font-medium text-gray-700 mb-1">
+                      Assign to Users
+                    </label>
+                    {usersLoading ? (
+                      <div className="text-sm text-gray-500 py-2">
+                        {MESSAGES.LOADING_USERS}
+                      </div>
+                    ) : users.length === 0 ? (
+                      <div className="text-sm text-gray-500 py-2">
+                        {MESSAGES.NO_USERS_MIGRATION}
+                      </div>
+                    ) : (
+                      <div className="space-y-2 max-h-48 overflow-y-auto border border-gray-300 rounded-lg p-3 bg-white">
+                        {users.map((user) => (
+                          <label
+                            key={user.id}
+                            className="flex items-center gap-2 p-2 hover:bg-gray-50 rounded cursor-pointer"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={(editingJob.assignedUserIds || []).includes(user.id)}
+                              onChange={(e) => {
+                                const currentIds = editingJob.assignedUserIds || []
+                                if (e.target.checked) {
+                                  setEditingJob({
+                                    ...editingJob,
+                                    assignedUserIds: [...currentIds, user.id]
+                                  })
+                                } else {
+                                  setEditingJob({
+                                    ...editingJob,
+                                    assignedUserIds: currentIds.filter((id: string) => id !== user.id)
+                                  })
+                                }
+                              }}
+                              className="w-4 h-4 text-primary-500 border-gray-300 rounded focus:ring-primary-500"
+                            />
+                            <span className="text-sm text-gray-700">
+                              {user.displayName || user.email}
+                              {user.id === currentUser?.id && (
+                                <span className="text-xs text-primary-600 ml-1">(You)</span>
+                              )}
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                    <p className="mt-1 text-xs text-gray-500">
+                      {MESSAGES.ASSIGN_USERS_HINT}
+                    </p>
+                  </div>
+
                   <div className="flex items-center gap-3 pt-4">
                     <button
                       type="submit"
@@ -868,7 +941,10 @@ const Admin: React.FC = () => {
                         </div>
                         <div className="flex items-center gap-2 flex-shrink-0">
                           <button
-                            onClick={() => setEditingJob(job)}
+                            onClick={() => setEditingJob({
+                              ...job,
+                              assignedUserIds: job.assignedUsers?.map(u => u.id) || []
+                            })}
                             className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                             aria-label="Edit job"
                           >

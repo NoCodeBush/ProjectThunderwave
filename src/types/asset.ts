@@ -10,7 +10,6 @@ export type AssetType =
 'lv_acb' |
 'metering_cts' |
 'rtu' |
-'rmu' |
 'CT' |
 'protection_relay' |
 'hv_metering_unit' |
@@ -19,6 +18,7 @@ export type AssetType =
 'battery_charger' |
 'substation' |
 'switchgear' |
+'transformer' |
 'other';
 
 export interface Asset {
@@ -715,48 +715,6 @@ export const ASSET_TYPE_CONFIGS: Record<AssetType, AssetTypeConfig> = {
       }
     ]
   },
-  rmu: {
-    label: 'RMU',
-    icon: '⚡',
-    properties: [
-      {
-        key: 'make',
-        label: 'Make',
-        type: 'text',
-        placeholder: 'Manufacturer'
-      },
-      {
-        key: 'type',
-        label: 'Type',
-        type: 'text',
-        placeholder: 'RMU type'
-      },
-      {
-        key: 'serial_no',
-        label: 'Serial No.',
-        type: 'text',
-        placeholder: 'Serial number'
-      },
-      {
-        key: 'year',
-        label: 'Year',
-        type: 'number',
-        placeholder: 'Year of manufacture'
-      },
-      {
-        key: 'voltage_rating',
-        label: 'Voltage Rating',
-        type: 'text',
-        placeholder: 'Voltage rating'
-      },
-      {
-        key: 'current_rating',
-        label: 'Current Rating',
-        type: 'text',
-        placeholder: 'Current rating'
-      }
-    ]
-  },
   protection_relay: {
     label: 'Protection Relay',
     icon: '🔒',
@@ -792,10 +750,28 @@ export const ASSET_TYPE_CONFIGS: Record<AssetType, AssetTypeConfig> = {
         placeholder: 'Protection type'
       },
       {
-        key: 'settings',
-        label: 'Settings',
-        type: 'textarea',
-        placeholder: 'Relay settings'
+        key: 'oc',
+        label: 'OC (Over Current)',
+        type: 'text',
+        placeholder: 'Over current setting'
+      },
+      {
+        key: 'oc_tms',
+        label: 'OC TMS',
+        type: 'text',
+        placeholder: 'Over current time multiplier'
+      },
+      {
+        key: 'ef',
+        label: 'EF (Earth Fault)',
+        type: 'text',
+        placeholder: 'Earth fault setting'
+      },
+      {
+        key: 'ef_tms',
+        label: 'EF TMS',
+        type: 'text',
+        placeholder: 'Earth fault time multiplier'
       }
     ]
   },
@@ -823,9 +799,9 @@ export const ASSET_TYPE_CONFIGS: Record<AssetType, AssetTypeConfig> = {
       },
       {
         key: 'location',
-        label: 'Location',
+        label: 'What 3 Words',
         type: 'text',
-        placeholder: 'Physical location'
+        placeholder: 'e.g., filled.count.soap'
       },
       {
         key: 'commissioning_date',
@@ -868,6 +844,72 @@ export const ASSET_TYPE_CONFIGS: Record<AssetType, AssetTypeConfig> = {
         label: 'Current Rating',
         type: 'text',
         placeholder: 'Rated current'
+      },
+      {
+        key: 'year',
+        label: 'Year',
+        type: 'number',
+        placeholder: 'Year of manufacture'
+      }
+    ]
+  },
+  transformer: {
+    label: 'Transformer',
+    icon: '🔌',
+    properties: [
+      {
+        key: 'make',
+        label: 'Make',
+        type: 'text',
+        placeholder: 'Manufacturer'
+      },
+      {
+        key: 'type',
+        label: 'Type',
+        type: 'text',
+        placeholder: 'Transformer type'
+      },
+      {
+        key: 'serial_no',
+        label: 'Serial No.',
+        type: 'text',
+        placeholder: 'Serial number'
+      },
+      {
+        key: 'rating_kva',
+        label: 'Rating (kVA)',
+        type: 'number',
+        placeholder: 'Transformer rating in kVA'
+      },
+      {
+        key: 'primary_voltage',
+        label: 'Primary Voltage (kV)',
+        type: 'text',
+        placeholder: 'Primary voltage'
+      },
+      {
+        key: 'secondary_voltage',
+        label: 'Secondary Voltage (V)',
+        type: 'text',
+        placeholder: 'Secondary voltage'
+      },
+      {
+        key: 'vector_group',
+        label: 'Vector Group',
+        type: 'text',
+        placeholder: 'e.g., Dyn11'
+      },
+      {
+        key: 'impedance',
+        label: 'Impedance (%)',
+        type: 'text',
+        placeholder: 'Percentage impedance'
+      },
+      {
+        key: 'cooling_type',
+        label: 'Cooling Type',
+        type: 'text',
+        placeholder: 'e.g., ONAN, ONAF'
       },
       {
         key: 'year',

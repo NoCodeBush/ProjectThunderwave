@@ -17,12 +17,13 @@ const AssetManagement: React.FC = () => {
   const { jobId } = useParams<{ jobId: string }>()
   const navigate = useNavigate()
   const { jobs, loading: jobsLoading } = useJobs()
-  const { assets, loading: assetsLoading, addAsset, deleteAsset, refreshAssets } = useAssets(jobId)
+  const { assets, loading: assetsLoading, addAsset, updateAsset, deleteAsset, refreshAssets } = useAssets(jobId)
   const {
     tests: jobTests,
     loading: testsLoading
   } = useTests({ jobId, includeResults: true, includeJobAssetTypes: true })
   const [showAddForm, setShowAddForm] = useState(false)
+  const [editingAsset, setEditingAsset] = useState<Asset | null>(null)
   const [formData, setFormData] = useState({
     asset_type: '' as AssetType
   })
@@ -95,6 +96,38 @@ const AssetManagement: React.FC = () => {
 
   const selectedAssetType = formData.asset_type ? ASSET_TYPE_CONFIGS[formData.asset_type] : null
 
+  const handleEditAsset = (asset: Asset) => {
+    setEditingAsset(asset)
+    setFormData({ asset_type: asset.asset_type })
+    setProperties(asset.properties)
+    setShowAddForm(false)
+  }
+
+  const handleUpdateAsset = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editingAsset) return
+
+    try {
+      await updateAsset(editingAsset.id, {
+        asset_type: formData.asset_type,
+        properties
+      })
+
+      setBanner({ message: 'Asset updated successfully!', type: 'success' })
+
+      // Fallback refresh in case real-time subscription doesn't work
+      setTimeout(() => refreshAssets(), 500)
+
+      // Reset form
+      setEditingAsset(null)
+      setFormData({ asset_type: '' as AssetType })
+      setProperties({})
+    } catch (error) {
+      console.error('Error updating asset:', error)
+      setBanner({ message: 'Failed to update asset. Please try again.', type: 'error' })
+    }
+  }
+
   const handleDeleteAsset = async (id: string) => {
     try {
       await deleteAsset(id)
@@ -153,9 +186,22 @@ const AssetManagement: React.FC = () => {
                 </svg>
                 <span className="hidden lg:inline">Refresh</span>
               </Button>
-              <Button onClick={() => setShowAddForm(!showAddForm)} variant="primary" className="text-sm">
-                <span className="hidden sm:inline">{showAddForm ? 'Cancel' : 'Add Asset'}</span>
-                <span className="sm:hidden">{showAddForm ? 'Cancel' : 'Add'}</span>
+              <Button 
+                onClick={() => {
+                  if (showAddForm || editingAsset) {
+                    setShowAddForm(false)
+                    setEditingAsset(null)
+                    setFormData({ asset_type: '' as AssetType })
+                    setProperties({})
+                  } else {
+                    setShowAddForm(true)
+                  }
+                }} 
+                variant="primary" 
+                className="text-sm"
+              >
+                <span className="hidden sm:inline">{showAddForm || editingAsset ? 'Cancel' : 'Add Asset'}</span>
+                <span className="sm:hidden">{showAddForm || editingAsset ? 'Cancel' : 'Add'}</span>
               </Button>
             </div>
           </div>
@@ -164,8 +210,101 @@ const AssetManagement: React.FC = () => {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-8">
+        {/* Edit Asset Form */}
+        {editingAsset && (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-6">Edit Asset</h2>
+            <form onSubmit={handleUpdateAsset} className="space-y-6">
+              {/* Asset Type Display (read-only when editing) */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-3">
+                  Asset Type
+                </label>
+                <div className="p-4 border-2 border-primary-500 bg-primary-50 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <div className="text-2xl">{ASSET_TYPE_CONFIGS[formData.asset_type]?.icon}</div>
+                    <div className="text-sm font-medium text-primary-700">
+                      {ASSET_TYPE_CONFIGS[formData.asset_type]?.label}
+                    </div>
+                  </div>
+                </div>
+                <p className="mt-2 text-xs text-gray-500">Asset type cannot be changed after creation</p>
+              </div>
+
+              {/* Type-specific Properties */}
+              {selectedAssetType && selectedAssetType.properties.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-medium text-gray-700 mb-3">
+                    {selectedAssetType.label} Properties
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {selectedAssetType.properties.map((prop) => (
+                      <div key={prop.key}>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          {prop.label}
+                          {prop.unit && <span className="text-gray-500 ml-1">({prop.unit})</span>}
+                        </label>
+                        {prop.type === 'select' ? (
+                          <Select
+                            value={properties[prop.key] || ''}
+                            options={[
+                              { value: '', label: `Select ${prop.label}` },
+                              ...(prop.options?.map((option) => ({
+                                value: option,
+                                label: option
+                              })) || [])
+                            ]}
+                            onChange={(value) => handlePropertyChange(prop.key, value)}
+                          />
+                        ) : prop.type === 'textarea' ? (
+                          <TextArea
+                            label=""
+                            value={properties[prop.key] || ''}
+                            onChange={(e) => handlePropertyChange(prop.key, e.target.value)}
+                            placeholder={prop.placeholder}
+                            rows={3}
+                            enablePlaceholderFill={true}
+                            className="mt-0"
+                          />
+                        ) : (
+                          <Input
+                            label=""
+                            type={prop.type}
+                            value={properties[prop.key] || ''}
+                            onChange={(e) => handlePropertyChange(prop.key, e.target.value)}
+                            placeholder={prop.placeholder}
+                            enablePlaceholderFill={true}
+                            className="mt-0"
+                          />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex justify-end gap-3">
+                <Button 
+                  type="button" 
+                  variant="secondary" 
+                  onClick={() => {
+                    setEditingAsset(null)
+                    setFormData({ asset_type: '' as AssetType })
+                    setProperties({})
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit">
+                  Update Asset
+                </Button>
+              </div>
+            </form>
+          </div>
+        )}
+
         {/* Add Asset Form */}
-        {showAddForm && (
+        {showAddForm && !editingAsset && (
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-6">Add New Asset</h2>
             <form onSubmit={handleSubmit} className="space-y-6">
@@ -285,6 +424,7 @@ const AssetManagement: React.FC = () => {
                 <AssetCard
                   key={asset.id}
                   asset={asset}
+                  onEdit={handleEditAsset}
                   onDelete={handleDeleteAsset}
                   tests={jobTests}
                 />
@@ -300,9 +440,10 @@ const AssetManagement: React.FC = () => {
 // Asset Card Component
 const AssetCard: React.FC<{
   asset: Asset
+  onEdit: (asset: Asset) => void
   onDelete: (id: string) => void
   tests: Test[]
-}> = ({ asset, onDelete, tests }) => {
+}> = ({ asset, onEdit, onDelete, tests }) => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const config = ASSET_TYPE_CONFIGS[asset.asset_type] || {
     label: 'Unknown Asset Type',
@@ -411,25 +552,36 @@ const AssetCard: React.FC<{
           </div>
         </div>
 
-        <button
-          onClick={handleDelete}
-          className={`rounded-lg p-2 transition-colors ${
-            showDeleteConfirm
-              ? 'bg-red-100 text-red-600'
-              : 'text-gray-400 hover:bg-red-50 hover:text-red-600'
-          }`}
-          aria-label={showDeleteConfirm ? 'Confirm delete' : 'Delete asset'}
-        >
-          {showDeleteConfirm ? (
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => onEdit(asset)}
+            className="rounded-lg p-2 text-gray-400 transition-colors hover:bg-blue-50 hover:text-blue-600"
+            aria-label="Edit asset"
+          >
             <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
             </svg>
-          ) : (
-            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-            </svg>
-          )}
-        </button>
+          </button>
+          <button
+            onClick={handleDelete}
+            className={`rounded-lg p-2 transition-colors ${
+              showDeleteConfirm
+                ? 'bg-red-100 text-red-600'
+                : 'text-gray-400 hover:bg-red-50 hover:text-red-600'
+            }`}
+            aria-label={showDeleteConfirm ? 'Confirm delete' : 'Delete asset'}
+          >
+            {showDeleteConfirm ? (
+              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            ) : (
+              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+            )}
+          </button>
+        </div>
       </div>
 
       <div className="mt-4 rounded-xl border border-gray-100 p-4">
