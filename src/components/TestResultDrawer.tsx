@@ -216,17 +216,30 @@ const getExpectationStatus = (input: TestInput, rawValue: InputValueState): Expe
 
 const ValidationIndicator: React.FC<{ status: ExpectationStatus }> = ({ status }) => {
   const isPass = status.state === 'pass'
+  const isInfo = status.state === 'info'
+  const isFail = status.state === 'fail'
+  
   return (
     <div
-      className={`mt-2 flex items-center text-sm ${isPass ? 'text-green-600' : 'text-red-600'}`}
+      className={`mt-2 flex items-center text-sm ${
+        isPass ? 'text-green-600' : 
+        isInfo ? 'text-blue-600' : 
+        'text-red-600'
+      }`}
       role="status"
       aria-live="polite"
     >
-      {isPass ? (
+      {isPass && (
         <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
           <path d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 10-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" />
         </svg>
-      ) : (
+      )}
+      {isInfo && (
+        <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+          <path d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" />
+        </svg>
+      )}
+      {isFail && (
         <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
           <path d="M10 18a8 8 0 100-16 8 8 0 000 16zm-1.414-9.414L7.293 7.293a1 1 0 011.414-1.414L10 8.172l1.293-1.293a1 1 0 111.414 1.414L11.414 9.586l1.293 1.293a1 1 0 11-1.414 1.414L10 11l-1.293 1.293a1 1 0 01-1.414-1.414l1.293-1.293z" />
         </svg>
@@ -275,12 +288,12 @@ const TestResultDrawer: React.FC<TestResultDrawerProps> = ({ isOpen, test, jobId
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
-  // Filter assets based on test's asset type (if specified)
+  // Filter assets based on test's asset types (if specified)
   const filteredAssets = useMemo(() => {
     if (!availableAssets) return []
-    if (!test.asset_type) return availableAssets
-    return availableAssets.filter(asset => asset.asset_type === test.asset_type)
-  }, [availableAssets, test.asset_type])
+    if (!test.asset_types || test.asset_types.length === 0) return availableAssets
+    return availableAssets.filter(asset => test.asset_types!.includes(asset.asset_type))
+  }, [availableAssets, test.asset_types])
 
   const assetOptions = useMemo(() => {
     return filteredAssets.map(asset => ({
@@ -695,7 +708,7 @@ const TestResultDrawer: React.FC<TestResultDrawerProps> = ({ isOpen, test, jobId
             ) : (
               <p className="text-sm text-gray-600 mb-4">
                 You must select at least one asset to link this test result to.
-                {test.asset_type && ` Only assets of type "${test.asset_type}" are shown.`}
+                {test.asset_types && test.asset_types.length > 0 && ` Only assets of type "${test.asset_types.join(', ')}" are shown.`}
               </p>
             )}
 
@@ -704,7 +717,7 @@ const TestResultDrawer: React.FC<TestResultDrawerProps> = ({ isOpen, test, jobId
             ) : assetOptions.length === 0 ? (
               <div className="text-sm text-gray-500">
                 No assets available for this test.
-                {test.asset_type && ` Make sure you have assets of type "${test.asset_type}" in this job.`}
+                {test.asset_types && test.asset_types.length > 0 && ` Make sure you have assets of type "${test.asset_types.join(', ')}" in this job.`}
               </div>
             ) : isAssetLocked && defaultAssetId ? (
               <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
