@@ -68,7 +68,7 @@ export const useTests = (options: UseTestsOptions = {}) => {
 
       // When filtering by job asset types, only show tests that match those asset types
       if (includeJobAssetTypes && jobAssetTypes.length > 0) {
-        query = query.in('asset_type', jobAssetTypes)
+        query = query.overlaps('asset_types', jobAssetTypes)
       }
 
       const { data, error: queryError } = await query
@@ -136,7 +136,7 @@ export const useTests = (options: UseTestsOptions = {}) => {
   const createTest = async (payload: CreateTestPayload) => {
     if (!currentUser) throw new Error('User not authenticated')
 
-    const { inputs, name, description, instructions, assetType } = payload
+    const { inputs, name, description, instructions, assetTypes } = payload
 
     if (!tenantId) {
       throw new Error('Tenant context is required to create tests')
@@ -146,15 +146,15 @@ export const useTests = (options: UseTestsOptions = {}) => {
       throw new Error('At least one test input is required')
     }
 
-    if (!assetType) {
-      throw new Error('An asset type must be specified for the test')
+    if (!assetTypes || assetTypes.length === 0) {
+      throw new Error('At least one asset type must be specified for the test')
     }
 
     const { data: testRecord, error: insertError } = await supabase
       .from('tests')
       .insert({
         tenant_id: tenantId,
-        asset_type: assetType,
+        asset_types: assetTypes,
         name,
         description: description || null,
         instructions: instructions || null,
@@ -212,6 +212,82 @@ export const useTests = (options: UseTestsOptions = {}) => {
     }
 
     setTests(prev => prev.filter(test => test.id !== testId))
+  }
+
+  const updateTest = async (testId: string, payload: CreateTestPayload) => {
+    if (!currentUser) throw new Error('User not authenticated')
+
+    const { inputs, name, description, instructions, assetTypes } = payload
+
+    if (!tenantId) {
+      throw new Error('Tenant context is required to update tests')
+    }
+
+    if (!inputs || inputs.length === 0) {
+      throw new Error('At least one test input is required')
+    }
+
+    if (!assetTypes || assetTypes.length === 0) {
+      throw new Error('At least one asset type must be specified for the test')
+    }
+
+    // Update the test record
+    const { error: updateError } = await supabase
+      .from('tests')
+      .update({
+        asset_types: assetTypes,
+        name,
+        description: description || null,
+        instructions: instructions || null
+      })
+      .eq('id', testId)
+
+    if (updateError) {
+      console.error('Error updating test:', updateError)
+      throw updateError
+    }
+
+    // Delete existing test inputs
+    const { error: deleteInputsError } = await supabase
+      .from('test_inputs')
+      .delete()
+      .eq('test_id', testId)
+
+    if (deleteInputsError) {
+      console.error('Error deleting old test inputs:', deleteInputsError)
+      throw deleteInputsError
+    }
+
+    // Insert new test inputs
+    if (inputs.length > 0) {
+      const formattedInputs = inputs.map((input, index) => {
+        return {
+          test_id: testId,
+          label: input.label,
+          input_type: input.inputType,
+          unit: input.unit || null,
+          position: index,
+          expected_type: input.expectedType,
+          expected_min: input.expectedMin ?? null,
+          expected_max: input.expectedMax ?? null,
+          expected_value: input.expectedValue ?? null,
+          notes: input.notes || null,
+          table_layout: input.inputType === 'table' && input.tableLayout ? input.tableLayout : null,
+          nested_table_layout: input.inputType === 'nested_table' && input.nestedTableLayout ? input.nestedTableLayout : null
+        }
+      })
+
+      const { error: inputsError } = await supabase
+        .from('test_inputs')
+        .insert(formattedInputs)
+
+      if (inputsError) {
+        console.error('Error creating test inputs:', inputsError)
+        throw inputsError
+      }
+    }
+
+    await fetchTests()
   }
 
   const saveTestResult = async (payload: SaveTestResultPayload) => {
@@ -283,6 +359,7 @@ export const useTests = (options: UseTestsOptions = {}) => {
     loading,
     error,
     createTest,
+    updateTest,
     saveTestResult,
     deleteTest,
     refresh: fetchTests

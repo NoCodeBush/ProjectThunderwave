@@ -35,6 +35,7 @@ const Admin: React.FC = () => {
     tests,
     loading: testsLoading,
     createTest: createNewTest,
+    updateTest,
     deleteTest
   } = useTests()
 
@@ -68,6 +69,7 @@ const Admin: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'jobs' | 'jobManagement' | 'equipment' | 'branding' | 'users' | 'tests'>('jobs')
   const [banner, setBanner] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
   const [isTestDrawerOpen, setIsTestDrawerOpen] = useState(false)
+  const [editingTest, setEditingTest] = useState<any>(null)
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false)
   const [editingJob, setEditingJob] = useState<any>(null)
   const [equipmentUserFilter, setEquipmentUserFilter] = useState<string>('') // Empty string = all users
@@ -1165,14 +1167,21 @@ const Admin: React.FC = () => {
                 <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                   <div>
                     <p className="text-base font-semibold text-gray-900">{test.name}</p>
-                    {test.asset_type && (
-                      <p className="text-sm text-gray-500">
-                        Asset Type: {ASSET_TYPE_CONFIGS[test.asset_type as keyof typeof ASSET_TYPE_CONFIGS]?.label || test.asset_type}
-                      </p>
+                    {test.asset_types && test.asset_types.length > 0 && (
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {test.asset_types.map(assetType => (
+                          <span
+                            key={assetType}
+                            className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-primary-100 text-primary-800"
+                          >
+                            {ASSET_TYPE_CONFIGS[assetType as keyof typeof ASSET_TYPE_CONFIGS]?.label || assetType}
+                          </span>
+                        ))}
+                      </div>
                     )}
-                    {!test.asset_type && (
+                    {(!test.asset_types || test.asset_types.length === 0) && (
                       <p className="text-sm text-gray-500 italic">
-                        No asset type specified
+                        No asset types specified
                       </p>
                     )}
                   </div>
@@ -1189,20 +1198,34 @@ const Admin: React.FC = () => {
                   <span className="text-xs text-gray-500">
                     Updated {formatDate(test.updated_at)}
                   </span>
-                  <button
-                    onClick={async () => {
-                      try {
-                        await deleteTest(test.id)
-                        setBanner({ message: 'Test deleted successfully.', type: 'success' })
-                      } catch (error) {
-                        console.error('Failed to delete test:', error)
-                        setBanner({ message: 'Failed to delete test.', type: 'error' })
-                      }
-                    }}
-                    className="text-sm text-red-600 hover:text-red-700"
-                  >
-                    Delete
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => {
+                        setEditingTest(test)
+                        setIsTestDrawerOpen(true)
+                      }}
+                      className="text-sm text-blue-600 hover:text-blue-700"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={async () => {
+                        if (!window.confirm('Are you sure you want to delete this test? This action cannot be undone.')) {
+                          return
+                        }
+                        try {
+                          await deleteTest(test.id)
+                          setBanner({ message: 'Test deleted successfully.', type: 'success' })
+                        } catch (error) {
+                          console.error('Failed to delete test:', error)
+                          setBanner({ message: 'Failed to delete test.', type: 'error' })
+                        }
+                      }}
+                      className="text-sm text-red-600 hover:text-red-700"
+                    >
+                      Delete
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
@@ -1364,7 +1387,11 @@ const Admin: React.FC = () => {
 
   <TestBuilderDrawer
     isOpen={isTestDrawerOpen}
-    onClose={() => setIsTestDrawerOpen(false)}
+    onClose={() => {
+      setIsTestDrawerOpen(false)
+      setEditingTest(null)
+    }}
+    test={editingTest}
     onCreate={async (payload) => {
       try {
         await createNewTest(payload)
@@ -1373,6 +1400,17 @@ const Admin: React.FC = () => {
       } catch (error) {
         console.error('Failed to create test:', error)
         setBanner({ message: 'Failed to create test.', type: 'error' })
+      }
+    }}
+    onUpdate={async (testId, payload) => {
+      try {
+        await updateTest(testId, payload)
+        setBanner({ message: 'Test updated successfully!', type: 'success' })
+        setIsTestDrawerOpen(false)
+        setEditingTest(null)
+      } catch (error) {
+        console.error('Failed to update test:', error)
+        setBanner({ message: 'Failed to update test.', type: 'error' })
       }
     }}
   />

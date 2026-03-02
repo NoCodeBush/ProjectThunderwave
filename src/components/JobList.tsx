@@ -7,7 +7,6 @@ import { formatDate } from '../utils/date'
 
 const JobCard: React.FC<{ job: Job; onDelete: (id: string) => void }> = ({ job, onDelete }) => {
   const navigate = useNavigate()
-  const [expanded] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
 
@@ -122,50 +121,7 @@ const JobCard: React.FC<{ job: Job; onDelete: (id: string) => void }> = ({ job, 
             </div>
           </div>
         )}
-
-        {/* Expand/Collapse indicator */}
-        <div
-          className="flex items-center justify-center mt-3 pt-3 border-t border-gray-100 cursor-pointer select-none"
-          onClick={(e) => {
-            e.preventDefault()
-            e.stopPropagation()
-            setExpanded(prev => !prev)
-          }}
-          role="button"
-          tabIndex={0}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault()
-              e.stopPropagation()
-              setExpanded(prev => !prev)
-            }
-          }}
-        >
-          <span className="text-xs text-gray-500 flex items-center gap-1">
-            {expanded ? MESSAGES.TAP_TO_COLLAPSE : MESSAGES.CLICK_FOR_FULL_DETAILS}
-            <svg
-              className={`w-4 h-4 transition-transform ${expanded ? 'rotate-180' : ''}`}
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-            </svg>
-          </span>
-        </div>
       </div>
-
-      {/* Expanded Details */}
-      {expanded && (
-        <div className="px-4 pb-4 border-t border-gray-100 bg-gray-50">
-          <div className="pt-4">
-            <h4 className="text-sm font-semibold text-gray-700 mb-2">Details</h4>
-            <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-wrap">
-              {job.details}
-            </p>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

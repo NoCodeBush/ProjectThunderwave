@@ -102,7 +102,7 @@ export interface TestResult {
 export interface Test {
   id: string
   tenant_id: string
-  asset_type?: string | null
+  asset_types?: string[] | null
   name: string
   description?: string | null
   instructions?: string | null
@@ -130,7 +130,7 @@ export interface CreateTestPayload {
   name: string
   description?: string
   instructions?: string
-  assetType?: string | null
+  assetTypes?: string[]
   inputs: TestInputDraft[]
 }
 

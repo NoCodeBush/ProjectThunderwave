@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 //import { Job } from '../types/job'
 import { ASSET_TYPE_CONFIGS } from '../types/asset'
-import { CreateTestPayload, TestExpectedType, TestInputDraft, TestInputType } from '../types/test'
+import { CreateTestPayload, Test, TestExpectedType, TestInputDraft, TestInputType } from '../types/test'
 import Input from './ui/Input'
 import TextArea from './ui/TextArea'
 import Select from './ui/Select'
@@ -15,7 +15,11 @@ interface TestBuilderDrawerProps {
   /** Pre-select asset type (e.g. when creating from asset context) */
   defaultAssetType?: string
   lockAsset?: boolean
-  onCreate: (payload: CreateTestPayload) => Promise<void>
+  onCreate?: (payload: CreateTestPayload) => Promise<void>
+  /** Edit mode: provide existing test to edit */
+  test?: Test
+  /** Update callback for edit mode */
+  onUpdate?: (testId: string, payload: CreateTestPayload) => Promise<void>
 }
 
 const createEmptyInput = (): TestInputDraft => ({
@@ -49,28 +53,59 @@ const TestBuilderDrawer: React.FC<TestBuilderDrawerProps> = ({
   onClose,
   defaultAssetType,
   lockAsset = false,
-  onCreate
+  onCreate,
+  test,
+  onUpdate
 }) => {
+  const isEditMode = Boolean(test)
   const [testName, setTestName] = useState('')
   const [description, setDescription] = useState('')
   const [instructions, setInstructions] = useState('')
-  const [selectedAssetType, setSelectedAssetType] = useState<string>(defaultAssetType || '')
+  const [selectedAssetTypes, setSelectedAssetTypes] = useState<string[]>(defaultAssetType ? [defaultAssetType] : [])
   const [inputs, setInputs] = useState<TestInputDraft[]>([createEmptyInput()])
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const effectiveAssetType = lockAsset ? (defaultAssetType || '') : selectedAssetType
+  const effectiveAssetTypes = lockAsset ? (defaultAssetType ? [defaultAssetType] : []) : selectedAssetTypes
 
   useEffect(() => {
     if (isOpen) {
-      setTestName('')
-      setDescription('')
-      setInstructions('')
-      setInputs([createEmptyInput()])
-      setSelectedAssetType(defaultAssetType || '')
+      if (test) {
+        // Edit mode: load existing test data
+        setTestName(test.name || '')
+        setDescription(test.description || '')
+        setInstructions(test.instructions || '')
+        setSelectedAssetTypes(test.asset_types || [])
+        
+        // Load test inputs
+        if (test.test_inputs && test.test_inputs.length > 0) {
+          const loadedInputs: TestInputDraft[] = test.test_inputs.map(input => ({
+            label: input.label,
+            inputType: input.input_type,
+            unit: input.unit || '',
+            expectedType: input.expected_type,
+            expectedMin: input.expected_min,
+            expectedMax: input.expected_max,
+            expectedValue: input.expected_value,
+            notes: input.notes || '',
+            tableLayout: input.table_layout || undefined,
+            nestedTableLayout: input.nested_table_layout || undefined
+          }))
+          setInputs(loadedInputs)
+        } else {
+          setInputs([createEmptyInput()])
+        }
+      } else {
+        // Create mode: reset form
+        setTestName('')
+        setDescription('')
+        setInstructions('')
+        setInputs([createEmptyInput()])
+        setSelectedAssetTypes(defaultAssetType ? [defaultAssetType] : [])
+      }
       setStatusMessage(null)
     }
-  }, [isOpen, defaultAssetType])
+  }, [isOpen, defaultAssetType, test])
 
   const assetTypeOptions = useMemo(() => {
     return Object.entries(ASSET_TYPE_CONFIGS).map(([key, config]) => ({
@@ -85,9 +120,9 @@ const TestBuilderDrawer: React.FC<TestBuilderDrawerProps> = ({
       return false
     }
 
-    // Asset type is required unless we're in a locked asset context
-    if (!lockAsset && !effectiveAssetType) {
-      setStatusMessage({ type: 'error', message: 'An asset type must be selected for this test.' })
+    // Asset types are required unless we're in a locked asset context
+    if (!lockAsset && (!effectiveAssetTypes || effectiveAssetTypes.length === 0)) {
+      setStatusMessage({ type: 'error', message: 'At least one asset type must be selected for this test.' })
       return false
     }
 
@@ -180,17 +215,24 @@ const TestBuilderDrawer: React.FC<TestBuilderDrawerProps> = ({
 
     setIsSubmitting(true)
     try {
-      await onCreate({
+      const payload: CreateTestPayload = {
         name: testName.trim(),
         description: description.trim() || undefined,
         instructions: instructions.trim() || undefined,
-        assetType: effectiveAssetType || undefined,
+        assetTypes: effectiveAssetTypes.length > 0 ? effectiveAssetTypes : undefined,
         inputs
-      })
-      setStatusMessage({ type: 'success', message: 'Test created successfully.' })
+      }
+
+      if (isEditMode && test && onUpdate) {
+        await onUpdate(test.id, payload)
+        setStatusMessage({ type: 'success', message: 'Test updated successfully.' })
+      } else if (onCreate) {
+        await onCreate(payload)
+        setStatusMessage({ type: 'success', message: 'Test created successfully.' })
+      }
     } catch (error) {
-      console.error('Failed to create test:', error)
-      setStatusMessage({ type: 'error', message: 'Failed to create the test. Please try again.' })
+      console.error(`Failed to ${isEditMode ? 'update' : 'create'} test:`, error)
+      setStatusMessage({ type: 'error', message: `Failed to ${isEditMode ? 'update' : 'create'} the test. Please try again.` })
     } finally {
       setIsSubmitting(false)
     }
@@ -243,7 +285,9 @@ const TestBuilderDrawer: React.FC<TestBuilderDrawerProps> = ({
         <div className="flex items-center justify-between border-b border-gray-200 p-6">
           <div>
             <p className="text-sm font-medium text-primary-600">Test Builder</p>
-            <h2 className="text-2xl font-semibold text-gray-900">Create a Commissioning Test</h2>
+            <h2 className="text-2xl font-semibold text-gray-900">
+              {isEditMode ? 'Edit Commissioning Test' : 'Create a Commissioning Test'}
+            </h2>
           </div>
           <button
             onClick={onClose}
@@ -268,6 +312,55 @@ const TestBuilderDrawer: React.FC<TestBuilderDrawerProps> = ({
               {statusMessage.message}
             </div>
           )}
+
+          <div>
+            {lockAsset && defaultAssetType ? (
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">
+                  Asset Type <span className="text-red-600">*</span>
+                </label>
+                <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">
+                  {ASSET_TYPE_CONFIGS[defaultAssetType as keyof typeof ASSET_TYPE_CONFIGS]?.label || defaultAssetType}
+                </div>
+              </div>
+            ) : (
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">
+                  Asset Types <span className="text-red-600">*</span>
+                </label>
+                <p className="mb-2 text-xs text-gray-600">
+                  Select all asset types this test applies to. The test will be available for all assets of these types across all jobs.
+                </p>
+                <div className="max-h-64 overflow-y-auto rounded-xl border border-gray-300 bg-white p-3 space-y-2">
+                  {assetTypeOptions.map((option) => (
+                    <label
+                      key={option.value}
+                      className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedAssetTypes.includes(option.value)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedAssetTypes(prev => [...prev, option.value])
+                          } else {
+                            setSelectedAssetTypes(prev => prev.filter(type => type !== option.value))
+                          }
+                        }}
+                        className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                      />
+                      <span className="text-sm text-gray-900">{option.label}</span>
+                    </label>
+                  ))}
+                </div>
+                {selectedAssetTypes.length > 0 && (
+                  <p className="mt-2 text-sm text-gray-600">
+                    {selectedAssetTypes.length} {selectedAssetTypes.length === 1 ? 'type' : 'types'} selected
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
 
           <Input
             label="Test Name"
@@ -454,42 +547,17 @@ const TestBuilderDrawer: React.FC<TestBuilderDrawerProps> = ({
                     </>
                   )}
 
-                  {input.inputType !== 'table' && (
-                    <TextArea
-                      label="Notes"
-                      rows={2}
-                      placeholder="Optional guidance for this input..."
-                      value={input.notes || ''}
-                      onChange={(e) => updateInput(index, { notes: e.target.value })}
-                      enablePlaceholderFill={true}
-                    />
-                  )}
+                  <TextArea
+                    label="Notes"
+                    rows={2}
+                    placeholder="Optional guidance for this input..."
+                    value={input.notes || ''}
+                    onChange={(e) => updateInput(index, { notes: e.target.value })}
+                    enablePlaceholderFill={true}
+                  />
                 </div>
               ))}
             </div>
-          </div>
-
-          <div>
-            {lockAsset && defaultAssetId ? (
-              <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">
-                  Asset Type <span className="text-red-600">*</span>
-                </label>
-                <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">
-                  {defaultAssetLabel || 'Selected asset type'}
-                </div>
-              </div>
-            ) : (
-              <Select
-                label="Asset Type"
-                placeholder="Select an asset type"
-                value={selectedAssetType}
-                options={assetTypeOptions}
-                onChange={setSelectedAssetType}
-                required
-                hint="Tests must be linked to an asset type. They will be available for all assets of this type across all jobs."
-              />
-            )}
           </div>
 
           <div className="flex justify-end gap-3 pt-4">
@@ -497,7 +565,7 @@ const TestBuilderDrawer: React.FC<TestBuilderDrawerProps> = ({
               Cancel
             </Button>
             <Button type="submit" disabled={!canSubmit || isSubmitting}>
-              {isSubmitting ? 'Creating...' : 'Create Test'}
+              {isSubmitting ? (isEditMode ? 'Updating...' : 'Creating...') : (isEditMode ? 'Update Test' : 'Create Test')}
             </Button>
           </div>
         </form>

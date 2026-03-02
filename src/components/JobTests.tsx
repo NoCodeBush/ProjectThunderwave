@@ -22,26 +22,29 @@ const JobTests: React.FC = () => {
   const { jobId } = useParams<{ jobId: string }>()
   const navigate = useNavigate()
   const { jobs, loading: jobsLoading } = useJobs()
-  const { tests, loading: testsLoading, saveTestResult, createTest: createNewTest } = useTests({ jobId, includeJobAssetTypes: true, includeResults: true })
+  const { tests, loading: testsLoading, saveTestResult, createTest: createNewTest, updateTest } = useTests({ jobId, includeJobAssetTypes: true, includeResults: true })
   const { assets, loading: assetsLoading } = useAssets(jobId)
   const [search, setSearch] = useState('')
   const [activeTestId, setActiveTestId] = useState<string | null>(null)
   const [activeAssetId, setActiveAssetId] = useState<string | null>(null)
   const [isTestBuilderOpen, setIsTestBuilderOpen] = useState(false)
+  const [editingTest, setEditingTest] = useState<Test | null>(null)
 
   const job = jobs.find(j => j.id === jobId)
 
-  // Expand tests to show one per asset of that type (tests are tenant-scoped templates matched by asset_type)
+  // Expand tests to show one per asset of that type (tests are tenant-scoped templates matched by asset_types)
   const testInstances = useMemo(() => {
     if (!tests || !assets) return []
     
     const instances: TestInstance[] = []
     
     tests.forEach(test => {
-      if (!test.asset_type) return
+      if (!test.asset_types || test.asset_types.length === 0) return
       
-      // Find all assets of this test's asset type
-      const matchingAssets = assets.filter(asset => asset.asset_type === test.asset_type)
+      // Find all assets that match any of this test's asset types
+      const matchingAssets = assets.filter(asset => 
+        test.asset_types!.includes(asset.asset_type)
+      )
       
       matchingAssets.forEach(asset => {
         // Find the latest result for this test-asset combination
@@ -121,6 +124,21 @@ const JobTests: React.FC = () => {
       console.error('Failed to create test:', error)
       // Could add error handling UI here
     }
+  }
+
+  const handleUpdateTest = async (payload: any) => {
+    if (!editingTest) return
+    try {
+      await updateTest(editingTest.id, payload)
+      setEditingTest(null)
+    } catch (error) {
+      console.error('Failed to update test:', error)
+      // Could add error handling UI here
+    }
+  }
+
+  const handleEditTest = (test: Test) => {
+    setEditingTest(test)
   }
 
   if (jobsLoading || testsLoading || assetsLoading) {
@@ -283,6 +301,13 @@ const JobTests: React.FC = () => {
                     <div className="mt-4 flex flex-wrap items-center justify-end gap-3">
                       <Button
                         size="sm"
+                        variant="secondary"
+                        onClick={() => handleEditTest(test)}
+                      >
+                        Edit Test
+                      </Button>
+                      <Button
+                        size="sm"
                         onClick={() => handleTestClick(test.id, asset.id)}
                       >
                         {latestResult ? 'View / Edit Results' : 'Complete Test'}
@@ -312,6 +337,13 @@ const JobTests: React.FC = () => {
         isOpen={isTestBuilderOpen}
         onClose={() => setIsTestBuilderOpen(false)}
         onCreate={handleCreateTest}
+      />
+
+      <TestBuilderDrawer
+        isOpen={Boolean(editingTest)}
+        onClose={() => setEditingTest(null)}
+        test={editingTest || undefined}
+        onUpdate={handleUpdateTest}
       />
     </div>
   )
