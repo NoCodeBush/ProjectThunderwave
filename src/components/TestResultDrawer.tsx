@@ -78,36 +78,6 @@ const getExpectationStatus = (input: TestInput, rawValue: InputValueState): Expe
       return null
     }
 
-    const describeRange = () => {
-      const hasMinNumber = typeof input.expected_min === 'number'
-      const hasMaxNumber = typeof input.expected_max === 'number'
-      const hasMinString = typeof input.expected_min === 'string'
-      const hasMaxString = typeof input.expected_max === 'string'
-
-      if (hasMinNumber && hasMaxNumber) {
-        return `Expected between ${formatValueWithUnit(input.expected_min as number, input.unit)} and ${formatValueWithUnit(
-          input.expected_max as number,
-          input.unit
-        )}`
-      }
-      if (hasMinNumber) {
-        return `Expected ≥ ${formatValueWithUnit(input.expected_min as number, input.unit)}`
-      }
-      if (hasMaxNumber) {
-        return `Expected ≤ ${formatValueWithUnit(input.expected_max as number, input.unit)}`
-      }
-      if (hasMinString && hasMaxString) {
-        return `Expected between ${input.expected_min} and ${input.expected_max}${input.unit ? ` ${input.unit}` : ''}`
-      }
-      if (hasMinString) {
-        return `Expected ≥ ${input.expected_min}${input.unit ? ` ${input.unit}` : ''}`
-      }
-      if (hasMaxString) {
-        return `Expected ≤ ${input.expected_max}${input.unit ? ` ${input.unit}` : ''}`
-      }
-      return null
-    }
-
     switch (input.expected_type) {
       case 'range': {
         const hasMinNumber = typeof input.expected_min === 'number'
@@ -119,8 +89,45 @@ const getExpectationStatus = (input: TestInput, rawValue: InputValueState): Expe
           return null
         }
 
-        // If both are strings, just show informational message
-        if ((hasMinString || hasMaxString) && !hasMinNumber && !hasMaxNumber) {
+        // Try to parse string values as numbers (for values like "50" vs ">50")
+        let minValue: number | null = null
+        let maxValue: number | null = null
+        let hasComparisonOperators = false
+
+        if (hasMinNumber) {
+          minValue = input.expected_min as number
+        } else if (hasMinString) {
+          const minStr = input.expected_min as string
+          // Check if it contains comparison operators
+          if (minStr.includes('<') || minStr.includes('>')) {
+            hasComparisonOperators = true
+          } else {
+            // Try to parse as number
+            const parsed = Number(minStr)
+            if (!Number.isNaN(parsed)) {
+              minValue = parsed
+            }
+          }
+        }
+
+        if (hasMaxNumber) {
+          maxValue = input.expected_max as number
+        } else if (hasMaxString) {
+          const maxStr = input.expected_max as string
+          // Check if it contains comparison operators
+          if (maxStr.includes('<') || maxStr.includes('>')) {
+            hasComparisonOperators = true
+          } else {
+            // Try to parse as number
+            const parsed = Number(maxStr)
+            if (!Number.isNaN(parsed)) {
+              maxValue = parsed
+            }
+          }
+        }
+
+        // If values contain comparison operators, show info only
+        if (hasComparisonOperators) {
           const minText = input.expected_min ? ` ≥ ${input.expected_min}` : ''
           const maxText = input.expected_max ? ` ≤ ${input.expected_max}` : ''
           return {
@@ -129,13 +136,28 @@ const getExpectationStatus = (input: TestInput, rawValue: InputValueState): Expe
           }
         }
 
-        // If we have numeric bounds, use them for validation
-        const meetsMin = !hasMinNumber || numericValue >= (input.expected_min as number)
-        const meetsMax = !hasMaxNumber || numericValue <= (input.expected_max as number)
-        if (meetsMin && meetsMax) {
-          return { state: 'pass', message: 'Within expected range' }
+        // If we have numeric bounds (either as numbers or parsed from strings), validate
+        if (minValue !== null || maxValue !== null) {
+          const meetsMin = minValue === null || numericValue >= minValue
+          const meetsMax = maxValue === null || numericValue <= maxValue
+          if (meetsMin && meetsMax) {
+            return { state: 'pass', message: 'Within expected range' }
+          }
+          
+          // Build fail message
+          let failMessage = 'Value is outside the expected range'
+          if (minValue !== null && maxValue !== null) {
+            failMessage = `Expected between ${formatValueWithUnit(minValue, input.unit)} and ${formatValueWithUnit(maxValue, input.unit)}`
+          } else if (minValue !== null) {
+            failMessage = `Expected ≥ ${formatValueWithUnit(minValue, input.unit)}`
+          } else if (maxValue !== null) {
+            failMessage = `Expected ≤ ${formatValueWithUnit(maxValue, input.unit)}`
+          }
+          
+          return { state: 'fail', message: failMessage }
         }
-        return { state: 'fail', message: describeRange() ?? 'Value is outside the expected range' }
+
+        return null
       }
       case 'minimum': {
         if (typeof input.expected_min === 'number') {
@@ -147,10 +169,26 @@ const getExpectationStatus = (input: TestInput, rawValue: InputValueState): Expe
             message: `Expected ≥ ${formatValueWithUnit(input.expected_min, input.unit)}`
           }
         } else if (typeof input.expected_min === 'string') {
-          // For string expected values (with < > symbols), just show informational message
-          return {
-            state: 'info',
-            message: `Expected: ${input.expected_min}${input.unit ? ` ${input.unit}` : ''}`
+          const minStr = input.expected_min
+          // Check if it contains comparison operators
+          if (minStr.includes('<') || minStr.includes('>')) {
+            // For string expected values (with < > symbols), just show informational message
+            return {
+              state: 'info',
+              message: `Expected: ${input.expected_min}${input.unit ? ` ${input.unit}` : ''}`
+            }
+          } else {
+            // Try to parse as number for validation
+            const parsed = Number(minStr)
+            if (!Number.isNaN(parsed)) {
+              if (numericValue >= parsed) {
+                return { state: 'pass', message: 'Meets minimum requirement' }
+              }
+              return {
+                state: 'fail',
+                message: `Expected ≥ ${formatValueWithUnit(parsed, input.unit)}`
+              }
+            }
           }
         }
         return null
@@ -165,10 +203,26 @@ const getExpectationStatus = (input: TestInput, rawValue: InputValueState): Expe
             message: `Expected ≤ ${formatValueWithUnit(input.expected_max, input.unit)}`
           }
         } else if (typeof input.expected_max === 'string') {
-          // For string expected values (with < > symbols), just show informational message
-          return {
-            state: 'info',
-            message: `Expected: ${input.expected_max}${input.unit ? ` ${input.unit}` : ''}`
+          const maxStr = input.expected_max
+          // Check if it contains comparison operators
+          if (maxStr.includes('<') || maxStr.includes('>')) {
+            // For string expected values (with < > symbols), just show informational message
+            return {
+              state: 'info',
+              message: `Expected: ${input.expected_max}${input.unit ? ` ${input.unit}` : ''}`
+            }
+          } else {
+            // Try to parse as number for validation
+            const parsed = Number(maxStr)
+            if (!Number.isNaN(parsed)) {
+              if (numericValue <= parsed) {
+                return { state: 'pass', message: 'Meets maximum requirement' }
+              }
+              return {
+                state: 'fail',
+                message: `Expected ≤ ${formatValueWithUnit(parsed, input.unit)}`
+              }
+            }
           }
         }
         return null
@@ -185,13 +239,30 @@ const getExpectationStatus = (input: TestInput, rawValue: InputValueState): Expe
             state: 'fail',
             message: `Expected ${formatValueWithUnit(input.expected_value, input.unit)}`
           }
-        } else {
-          // For string expected values (with < > symbols), just show the expected value
-          return {
-            state: 'info',
-            message: `Expected: ${input.expected_value}${input.unit ? ` ${input.unit}` : ''}`
+        } else if (typeof input.expected_value === 'string') {
+          const valueStr = input.expected_value
+          // Check if it contains comparison operators
+          if (valueStr.includes('<') || valueStr.includes('>')) {
+            // For string expected values (with < > symbols), just show the expected value
+            return {
+              state: 'info',
+              message: `Expected: ${input.expected_value}${input.unit ? ` ${input.unit}` : ''}`
+            }
+          } else {
+            // Try to parse as number for validation
+            const parsed = Number(valueStr)
+            if (!Number.isNaN(parsed)) {
+              if (numericValue === parsed) {
+                return { state: 'pass', message: 'Matches expected value' }
+              }
+              return {
+                state: 'fail',
+                message: `Expected ${formatValueWithUnit(parsed, input.unit)}`
+              }
+            }
           }
         }
+        return null
       }
       default:
         return null
