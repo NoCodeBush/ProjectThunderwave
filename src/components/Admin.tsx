@@ -1071,7 +1071,6 @@ const Admin: React.FC = () => {
           </div>
           <Button
             onClick={() => setIsTestDrawerOpen(true)}
-            disabled={jobs.length === 0 || jobsLoading}
           >
             New Test
           </Button>
