@@ -269,6 +269,39 @@ const TestResultDrawer: React.FC<TestResultDrawerProps> = ({ isOpen, test, jobId
     }
 
     const initialValues: Record<string, InputValueState> = {}
+    
+    // Always initialize ALL inputs first (to ensure every field exists in state)
+    inputs.forEach((input) => {
+      if (input.input_type === 'table') {
+        // For table inputs, initialize cells based on table layout
+        const tableLayout = getTableLayout(input)
+        if (tableLayout) {
+          tableLayout.cells
+            .filter((cell: TableCellConfig) => cell.enabled)
+            .forEach((cell: TableCellConfig) => {
+              const cellKey = `${input.id}_${cell.rowIndex}_${cell.columnIndex}`
+              initialValues[cellKey] = cell.inputType === 'boolean' ? null : ''
+            })
+        }
+      } else if (input.input_type === 'nested_table') {
+        // For nested table inputs, initialize cells based on nested table layout
+        const nestedLayout = input.nested_table_layout
+        if (nestedLayout) {
+          nestedLayout.cells
+            .filter((cell) => cell.cellType === 'input')
+            .forEach((cell) => {
+              const cellKey = `${input.id}_${cell.rowIndex}_${cell.columnIndex}`
+              initialValues[cellKey] = cell.inputType === 'boolean' ? null : ''
+            })
+        }
+      } else if (input.input_type === 'boolean') {
+        initialValues[input.id] = null
+      } else {
+        initialValues[input.id] = ''
+      }
+    })
+    
+    // Then overlay any saved responses on top
     if (latestResult?.responses) {
       latestResult.responses.forEach((response) => {
         // Check if this is a table input cell response
@@ -280,26 +313,6 @@ const TestResultDrawer: React.FC<TestResultDrawerProps> = ({ isOpen, test, jobId
         
         // Regular input response
         initialValues[response.inputId] = response.value as InputValueState
-      })
-    } else {
-      // Initialize empty values for all inputs
-      inputs.forEach((input) => {
-        if (input.input_type === 'table') {
-          // For table inputs, initialize cells based on table layout
-          const tableLayout = getTableLayout(input)
-          if (tableLayout) {
-            tableLayout.cells
-              .filter((cell: TableCellConfig) => cell.enabled)
-              .forEach((cell: TableCellConfig) => {
-                const cellKey = `${input.id}_${cell.rowIndex}_${cell.columnIndex}`
-                initialValues[cellKey] = cell.inputType === 'boolean' ? null : ''
-              })
-          }
-        } else if (input.input_type === 'boolean') {
-          initialValues[input.id] = null
-        } else {
-          initialValues[input.id] = ''
-        }
       })
     }
 
