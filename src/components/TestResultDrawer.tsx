@@ -221,13 +221,25 @@ const TestResultDrawer: React.FC<TestResultDrawerProps> = ({ isOpen, test, jobId
     return input.table_layout || null
   }
   
-  // If defaultResultId is provided, use that specific result, otherwise use the latest
+  // If defaultResultId is provided, use that specific result
+  // If defaultAssetId is provided but no result exists yet, keep it undefined (don't use results from other assets)
+  // Only fallback to latest result when there's no asset locking
   const latestResult: TestResult | undefined = useMemo(() => {
-    if (defaultResultId && test.test_results) {
-      return test.test_results.find(r => r.id === defaultResultId)
+    // Filter results to only this job to avoid cross-job contamination
+    const jobResults = jobId 
+      ? test.test_results?.filter(r => r.job_id === jobId)
+      : test.test_results
+    
+    if (defaultResultId && jobResults) {
+      const found = jobResults.find(r => r.id === defaultResultId)
+      if (found) return found
     }
-    return test.test_results?.[0]
-  }, [test.test_results, defaultResultId])
+    // If an asset is locked but there's no result yet, don't fallback to other assets' results
+    if (defaultAssetId) {
+      return undefined
+    }
+    return jobResults?.[0]
+  }, [test.test_results, defaultResultId, defaultAssetId, jobId])
 
   const { assets: availableAssets, loading: assetsLoading } = useAssets(jobId)
   const [selectedAssetIds, setSelectedAssetIds] = useState<string[]>([])

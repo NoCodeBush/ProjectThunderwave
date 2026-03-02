@@ -47,8 +47,10 @@ const JobTests: React.FC = () => {
       )
       
       matchingAssets.forEach(asset => {
-        // Find the latest result for this test-asset combination
-        const result = test.test_results?.find(r => r.asset_id === asset.id)
+        // Find the latest result for this test-asset combination IN THIS JOB
+        const result = test.test_results?.find(r => 
+          r.asset_id === asset.id && r.job_id === jobId
+        )
         
         instances.push({
           test,
@@ -59,7 +61,7 @@ const JobTests: React.FC = () => {
     })
     
     return instances
-  }, [tests, assets])
+  }, [tests, assets, jobId])
 
   const filteredTestInstances = useMemo(() => {
     const query = search.trim().toLowerCase()
@@ -240,7 +242,8 @@ const JobTests: React.FC = () => {
             <div className="space-y-3">
               {filteredTestInstances.map((instance) => {
                 const { test, asset, resultId } = instance
-                const latestResult = resultId ? test.test_results?.find(r => r.id === resultId) : undefined
+                // Filter results to only this job when looking up
+                const latestResult = resultId ? test.test_results?.find(r => r.id === resultId && r.job_id === jobId) : undefined
                 const assetLabel = asset.make || asset.model ? `${asset.make || ''} ${asset.model || ''}`.trim() : ASSET_TYPE_CONFIGS[asset.asset_type]?.label || asset.asset_type
                 const assetDetails = asset.serial_number ? `Serial: ${asset.serial_number}` : asset.asset_type
 
