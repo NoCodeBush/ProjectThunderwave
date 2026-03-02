@@ -53,7 +53,7 @@ export const useTestEquipment = () => {
           dateTest: row.date_test,
           expiry: row.expiry,
           userId: row.user_id,
-          assignedUserName: row.user_tenant_profiles?.display_name || row.user_tenant_profiles?.email || 'Unknown User'
+          assignedUserName: row.user_id ? (row.user_tenant_profiles?.display_name || row.user_tenant_profiles?.email || 'Unknown User') : 'Unassigned'
         }
       })
 
@@ -80,7 +80,7 @@ export const useTestEquipment = () => {
           serial_number: serialNumber,
           date_test: dateTest,
           expiry,
-          user_id: userId,
+          user_id: userId || null, // Allow NULL for unassigned equipment
           tenant_id: tenantId
         })
 

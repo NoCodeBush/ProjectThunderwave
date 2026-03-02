@@ -944,7 +944,7 @@ const Admin: React.FC = () => {
                   label="Assign to User"
                   value={equipmentForm.userId}
                   options={[
-                    { value: '', label: usersLoading ? 'Loading users...' : 'Select a user' },
+                    { value: '', label: usersLoading ? 'Loading users...' : 'Unassigned' },
                     ...(users || []).map((user) => ({
                       value: user.id,
                       label: user.displayName || user.email
@@ -954,7 +954,6 @@ const Admin: React.FC = () => {
                     setEquipmentForm({ ...equipmentForm, userId: value })
                   }
                   disabled={usersLoading || !users || users.length === 0}
-                  required
                 />
 
                 <Button type="submit" fullWidth className="sm:w-auto">
