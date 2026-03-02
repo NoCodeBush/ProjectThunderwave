@@ -353,10 +353,11 @@ const TestResultDrawer: React.FC<TestResultDrawerProps> = ({ isOpen, test, jobId
           newErrors[input.id] = 'Enter a value'
           return
         }
-        // Allow numbers, <, >, and spaces
+        // Allow numbers, <, >, T (for trace readings), and spaces
         const cleanValue = asString.replace(/[<>]/g, '').trim()
-        if (cleanValue && Number.isNaN(Number(cleanValue))) {
-          newErrors[input.id] = 'Enter a valid number (may include < or > symbols)'
+        // Allow 'T' or 't' for trace readings
+        if (cleanValue && cleanValue.toUpperCase() !== 'T' && Number.isNaN(Number(cleanValue))) {
+          newErrors[input.id] = 'Enter a valid number, T for trace, or use < > symbols'
         }
       } else if (input.input_type === 'text') {
         if (!rawValue || !(rawValue as string).trim()) {
@@ -386,10 +387,11 @@ const TestResultDrawer: React.FC<TestResultDrawerProps> = ({ isOpen, test, jobId
               newErrors[cellValueKey] = 'Enter a value'
               return
             }
-            // Allow numbers, <, >, and spaces
+            // Allow numbers, <, >, T (for trace readings), and spaces
             const cleanValue = asString.replace(/[<>]/g, '').trim()
-            if (cleanValue && Number.isNaN(Number(cleanValue))) {
-              newErrors[cellValueKey] = 'Enter a valid number (may include < or > symbols)'
+            // Allow 'T' or 't' for trace readings
+            if (cleanValue && cleanValue.toUpperCase() !== 'T' && Number.isNaN(Number(cleanValue))) {
+              newErrors[cellValueKey] = 'Enter a valid number, T for trace, or use < > symbols'
             }
           } else if (cell.inputType === 'text') {
             if (!rawValue || !(rawValue as string).trim()) {
@@ -420,9 +422,11 @@ const TestResultDrawer: React.FC<TestResultDrawerProps> = ({ isOpen, test, jobId
               newErrors[cellValueKey] = 'Enter a value'
               return
             }
+            // Allow numbers, <, >, T (for trace readings), and spaces
             const cleanValue = asString.replace(/[<>]/g, '').trim()
-            if (cleanValue && Number.isNaN(Number(cleanValue))) {
-              newErrors[cellValueKey] = 'Enter a valid number (may include < or > symbols)'
+            // Allow 'T' or 't' for trace readings
+            if (cleanValue && cleanValue.toUpperCase() !== 'T' && Number.isNaN(Number(cleanValue))) {
+              newErrors[cellValueKey] = 'Enter a valid number, T for trace, or use < > symbols'
             }
           } else if (cell.inputType === 'text') {
             if (!rawValue || !(rawValue as string).trim()) {
@@ -451,14 +455,17 @@ const TestResultDrawer: React.FC<TestResultDrawerProps> = ({ isOpen, test, jobId
         const asString = rawValue?.toString() ?? ''
         let parsed: number | string | null = null
         if (asString.trim()) {
-          // Check if it contains comparison operators
-          if (asString.includes('<') || asString.includes('>')) {
+          const trimmed = asString.trim()
+          // Normalize 'T' or 't' to uppercase 'T'
+          if (trimmed.toUpperCase() === 'T') {
+            parsed = 'T'
+          } else if (trimmed.includes('<') || trimmed.includes('>')) {
             // Store as string to preserve the < > symbols
-            parsed = asString.trim()
+            parsed = trimmed
           } else {
             // Store as number for regular numeric values
-            const numValue = Number(asString.trim())
-            parsed = Number.isNaN(numValue) ? asString.trim() : numValue
+            const numValue = Number(trimmed)
+            parsed = Number.isNaN(numValue) ? trimmed : numValue
           }
         }
         responses.push({
@@ -497,14 +504,17 @@ const TestResultDrawer: React.FC<TestResultDrawerProps> = ({ isOpen, test, jobId
             const asString = rawValue?.toString() ?? ''
             let parsed: number | string | null = null
             if (asString.trim()) {
-              // Check if it contains comparison operators
-              if (asString.includes('<') || asString.includes('>')) {
+              const trimmed = asString.trim()
+              // Normalize 'T' or 't' to uppercase 'T'
+              if (trimmed.toUpperCase() === 'T') {
+                parsed = 'T'
+              } else if (trimmed.includes('<') || trimmed.includes('>')) {
                 // Store as string to preserve the < > symbols
-                parsed = asString.trim()
+                parsed = trimmed
               } else {
                 // Store as number for regular numeric values
-                const numValue = Number(asString.trim())
-                parsed = Number.isNaN(numValue) ? asString.trim() : numValue
+                const numValue = Number(trimmed)
+                parsed = Number.isNaN(numValue) ? trimmed : numValue
               }
             }
             responses.push({
@@ -552,11 +562,15 @@ const TestResultDrawer: React.FC<TestResultDrawerProps> = ({ isOpen, test, jobId
             const asString = rawValue?.toString() ?? ''
             let parsed: number | string | null = null
             if (asString.trim()) {
-              if (asString.includes('<') || asString.includes('>')) {
-                parsed = asString.trim()
+              const trimmed = asString.trim()
+              // Normalize 'T' or 't' to uppercase 'T'
+              if (trimmed.toUpperCase() === 'T') {
+                parsed = 'T'
+              } else if (trimmed.includes('<') || trimmed.includes('>')) {
+                parsed = trimmed
               } else {
-                const numValue = Number(asString.trim())
-                parsed = Number.isNaN(numValue) ? asString.trim() : numValue
+                const numValue = Number(trimmed)
+                parsed = Number.isNaN(numValue) ? trimmed : numValue
               }
             }
             responses.push({
